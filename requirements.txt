@@ -1,0 +1,7 @@
+numpy
+matplotlib
+pandas
+pwlf
+sympy
+
+# note: flatsurf needs to be installed manually
