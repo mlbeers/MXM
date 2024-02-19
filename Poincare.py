@@ -394,7 +394,7 @@ def plot(df, vecs, c, i, n_squares, index, test = False):
         plt.savefig(os.path.join("results", f"{n_squares} - {index}", str(i)))
     #for troubleshooting
     if test == True:
-        #display vectors on the right edge of the section frop top to bottom
+        #display vectors on the right edge of the section from top to bottom
         labs = list(df[df["x"] == max(df["x"])]["lab"].unique())
         labs.reverse()
         output = []
@@ -576,7 +576,7 @@ def time_comp(secs):
     return times2
 
 def pdf(vals, prob_times, dx, test = False):
-    times = list(np.arange(20*dx, 10, 20*dx))
+    times = list(np.arange(0, 10, 20*dx))
     a = list(sorted(vals))
     factor = 1/min(a)
     b = []
