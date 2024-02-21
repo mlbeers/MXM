@@ -291,6 +291,37 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
                     continue
         winners.append(winner)
 
+
+    for a in x_vals:
+        check = 0
+        winner_slope = None
+        winner = None
+        Mab = np.array([[a, m1*a + 1/y0 + dx_y], [0, a]])
+        for vec in vecs:
+            new = Mab@vec
+            if float(new[0][0]) == 0:
+                continue
+            x = float(new[0][0])
+            y = float(new[1][0])
+            if y/x <= 0:
+                continue
+            if x <= 1 and x > 0:
+                if winner_slope == None:
+                    winner_slope = y/x
+                    winner = vec
+                    continue
+        #if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+                elif abs(y/x - winner_slope) <= dx/1000:
+                    if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
+                        winner = vec
+                        continue
+                elif y/x < winner_slope:
+                    winner_slope = y/x
+                    winner = vec
+                    continue
+        winners.append(winner)
+    
+
     winners2 = []
     for winner in winners:
         try:
