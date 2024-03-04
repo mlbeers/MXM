@@ -22,6 +22,7 @@ class UtilsTestSuite(unittest.TestCase):
 
     def test_generating_permutations(self):
         # print(os.path.abspath(".")) # use to check base path
+        # TODO: document what perm these vecs are generated from
         vecs = load_arrays_from_file(os.path.join(
             "Poincare_Sections", "vecs", "vecs7-3.npy"))
         self.assertEqual(len(vecs), 907654)

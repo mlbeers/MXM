@@ -1,8 +1,13 @@
 import unittest
-from surface_dynamics.all import OrigamiDatabase
+from surface_dynamics.all import OrigamiDatabase, Origami
 from sage.all import SymmetricGroup
 from flatsurf import translation_surfaces
 import numpy as np
+from .Poincare import poincare_details
+from .utils import load_arrays_from_file  # testing
+import time  # testing
+from multiprocessing import Pool
+import os  # testing
 
 
 # detect if a given orgiami has TODO: a unit horizontal
@@ -72,6 +77,32 @@ def generate_vectors(permutation, length=200):
 
     return [np.array([[v[0]], [v[1]]]) for v in vectors]
 
+# wraps the poincare_details function in a try catch because
+# when the number of vectors used in this simulation is too
+# low, the chances of there not being a precomputed vector in
+# the direction of the saddle connection is reasonably high.
+# this function can take a while!
+# - permutation: a permutation defining a STS
+# - vectors: pregenerated list of vectors in the direction of saddle connections on this STS
+
+
+def try_poincare_details(sts_data):
+    permutation, vectors = sts_data
+    details = []
+    try:
+        alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
+            permutation, vectors)
+        details.append((alphas, c_matrices, generators, eigenvectors))
+    except:
+        pass
+    return details
+
+
+def poincare_details_wrapper(sts_data, trys):
+    details = []
+    with Pool(20) as p:
+        print(p.map(try_poincare_details, [sts_data for i in range(trys)]))
+
 
 # ~~ Tests ~~
 
@@ -95,3 +126,28 @@ class ComputationsTestSuite(unittest.TestCase):
         permutations = generate_permutations(7)
         vectors = generate_vectors(permutations[4], 200)
         self.assertEqual(len(vectors), 200)  # TODO: why is this 256?
+
+    def test_poincare_details_large_data(self):
+        start = time.time()
+        # mock test data
+        # this is permutations[4] from generate_permutations(7)
+        perm = Origami(
+            '(1)(2)(3)(4,5,6,7)', '(1,2,3,4)(5)(6)(7)')
+        vecs = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "vecs7-4.npy"))
+        print(len(vecs))
+        output = poincare_details_wrapper((perm, vecs), 600)
+        end = time.time()
+        print(end-start)
+        print(output)
+
+    def test_poincare_details_small_data(self):
+        start = time.time()
+        # this is permutations[4] from generate_permutations(7)
+        perm = Origami(
+            '(1)(2)(3)(4,5,6,7)', '(1,2,3,4)(5)(6)(7)')
+        vecs = generate_vectors(perm, 500)
+        output = poincare_details_wrapper((perm, vecs), 600)
+        end = time.time()
+        print(end-start)
+        print(output)

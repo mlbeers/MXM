@@ -74,7 +74,8 @@ def comp(perm, vecs0, n_squares, index, dx=0.001, dx2=0.005):
     file.close()
 
 
-def poincare_details(perm, vecs0):
+def poincare_details(sts_data):
+    perm, vecs0 = sts_data
     # find the generators of each cusp of the STS
     generators = []
     a = perm.veech_group().cusps()
