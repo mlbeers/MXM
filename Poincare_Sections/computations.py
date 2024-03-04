@@ -75,7 +75,7 @@ def generate_vectors(permutation, length=200):
 
 # ~~ Tests ~~
 
-class BasicTestSuite(unittest.TestCase):
+class ComputationsTestSuite(unittest.TestCase):
     """Basic test cases."""
 
     # TODO: why these numbers?
