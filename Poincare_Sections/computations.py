@@ -3,11 +3,12 @@ from surface_dynamics.all import OrigamiDatabase, Origami
 from sage.all import SymmetricGroup
 from flatsurf import translation_surfaces
 import numpy as np
-from .Poincare import poincare_details
-from .utils import load_arrays_from_file  # testing
+from .Poincare import poincare_details, poincare_details, winners
+from .utils import load_arrays_from_file, save_arrays_to_file  # testing
 import time  # testing
 from multiprocessing import Pool
 import os  # testing
+import concurrent.futures
 
 
 # detect if a given orgiami has TODO: a unit horizontal
@@ -67,6 +68,7 @@ def generate_vectors(permutation, length=200):
     T = translation_surfaces.origami(S(h), S(v))
     # T = T.erase_marked_points() # only works if pyflatsurf is installed
     saddle_connections = T.saddle_connections(length)
+
     vectors = []
     for sc in saddle_connections:
         vec = sc.holonomy().n()
@@ -75,7 +77,44 @@ def generate_vectors(permutation, length=200):
             if (vec[0] >= -length/20 and vec[0] <= length/20) and (vec[1] >= -length/20 and vec[1] <= length/20):
                 vectors.append(vec)
 
-    return [np.array([[v[0]], [v[1]]]) for v in vectors]
+    vectors = [np.array([[v[0]], [v[1]]]) for v in vectors]
+    return vectors
+
+
+# mildly faster. the bottleneck is in generating saddle connections
+# TODO: would be even slightly faster without all the casting at the end.
+
+def parallel_generate_vectors(permutation, radius=200):
+    h, v = str(permutation).split("\n")
+    S = SymmetricGroup(len(h))
+    T = translation_surfaces.origami(S(h), S(v))
+    # T = T.erase_marked_points() # only works if pyflatsurf is installed
+    saddle_connections = T.saddle_connections(
+        radius)  # TODO: is this only first quadrant?
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        vectors = executor.map(inner_generate_vectors, [
+            (sc, radius) for sc in saddle_connections])
+
+    # remove None (when inner_generate_vectors doesn't find a vec within radius)
+    vectors = [v for v in vectors if v is not None]
+    # cast to hashable type for deduplicating
+    vectors = [(v[0], v[1]) for v in vectors]
+    # deduplicate, note: this reorders the list
+    vectors = list(set(vectors))
+    # cast to type needed for later computations
+    vectors = [np.array([[v[0]], [v[1]]]) for v in vectors]
+
+    return vectors
+
+
+def inner_generate_vectors(sc_data):
+    saddle_connection, radius = sc_data
+    vec = saddle_connection.holonomy().n()
+    # direction = saddle_connection.direction  # TODO: what's this?
+    if (vec[0] >= -radius/20 and vec[0] <= radius/20) and (vec[1] >= -radius/20 and vec[1] <= radius/20):
+        return vec
+
 
 # wraps the poincare_details function in a try catch because
 # when the number of vectors used in this simulation is too
@@ -85,26 +124,88 @@ def generate_vectors(permutation, length=200):
 # - permutation: a permutation defining a STS
 # - vectors: pregenerated list of vectors in the direction of saddle connections on this STS
 
-
 def try_poincare_details(sts_data):
-    permutation, vectors = sts_data
+    perm, vecs = sts_data
     details = []
-    try:
-        alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
-            permutation, vectors)
-        details.append((alphas, c_matrices, generators, eigenvectors))
-    except:
-        pass
+    for i in range(100):
+        try:
+            alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
+                perm, vecs)
+
+            details.append((alphas, c_matrices, generators, eigenvectors))
+        except:
+            pass
     return details
 
 
-def poincare_details_wrapper(sts_data, trys):
+def init_pool_processes(p, v):
+    global permutation
+    global vectors
+    permutation = p
+    vectors = v
+
+
+def threaded_generate_poincare_section_details(sts_data, trys):
+    details = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        details = executor.map(try_poincare_details, [
+            sts_data for i in range(trys)])
+
+    details = [x for x in details if not len(x) == 0]
+    return details
+
+
+def multiprocess_generate_poincare_section_details(sts_data, trys):
     details = []
     with Pool(20) as p:
-        print(p.map(try_poincare_details, [sts_data for i in range(trys)]))
+        details = p.map(try_poincare_details, [sts_data for i in range(trys)])
+
+    details = [x for x in details if not len(x) == 0]
+    return details
 
 
-# ~~ Tests ~~
+def generate_poincare_section_details(sts_data, trys):
+    permutation, vectors = sts_data
+
+    details = []
+    for i in range(trys):
+        try:
+            print('calling poincare deets')
+            alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
+                (permutation, vectors))
+
+            details.append((alphas, c_matrices, generators, eigenvectors))
+        except:
+            pass
+
+    return details
+
+
+# Run computations for individual cusps
+# j represents the jth cusps
+# change i to get new output for the jth cusp
+# output:
+# - number of vectors
+# - the x and y coords of the "section vector"
+# - poincare section plot
+
+def compute_on_cusp(details, vectors):
+    (alphas, c_matrices, eigenvectors, _) = details
+    # 0, 24, 24, 0, 6, 13, 0, 3, 3, 1
+    i = 24
+    j = 1
+    n_squares = 7
+    dx = 0.0005
+    index = 4
+    vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
+        alphas[i][j], c_matrices[i][j], eigenvectors[i][j], vectors, dx, False)
+    df = winners(vecs, x_vals, m0, m1, y0, dx, dx_y)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~ Tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class ComputationsTestSuite(unittest.TestCase):
     """Basic test cases."""
@@ -122,32 +223,82 @@ class ComputationsTestSuite(unittest.TestCase):
 
     # TODO: Not all permutuations work?
 
-    def test_generating_vectors(self):
+    def test_generating_vectors_small(self):
         permutations = generate_permutations(7)
+        start_1 = time.time()
         vectors = generate_vectors(permutations[4], 200)
-        self.assertEqual(len(vectors), 200)  # TODO: why is this 256?
+        end_1 = time.time()
+        self.assertEqual(len(vectors), 256)  # TODO: why is this 256?
+
+        start_2 = time.time()
+        vectors = parallel_generate_vectors(permutations[4], 200)
+        end_2 = time.time()
+        self.assertEqual(len(vectors), 256)  # TODO: why is this 256?
+        print(
+            f'parallel speed: {end_2-start_2}\n regular speed: {end_1-start_1}')
+        self.assertGreater(end_2-start_2, end_1-start_1)
+
+    def test_generating_vectors_medium(self):
+        permutations = generate_permutations(7)
+        start_1 = time.time()
+        vectors = generate_vectors(permutations[4], 1000)
+        end_1 = time.time()
+        # self.assertEqual(len(vectors), 256)  # TODO: why is this 256?
+
+        start_2 = time.time()
+        vectors = parallel_generate_vectors(permutations[4], 1000)
+        end_2 = time.time()
+        # self.assertEqual(len(vectors), 256)  # TODO: why is this 256?
+        print(
+            f'parallel speed: {end_2-start_2}\n regular speed: {end_1-start_1}')
+        self.assertGreater(end_2-start_2, end_1-start_1)
 
     def test_poincare_details_large_data(self):
-        start = time.time()
-        # mock test data
-        # this is permutations[4] from generate_permutations(7)
+        # mock data
+        # this is permutations[3] from generate_permutations(7)
         perm = Origami(
-            '(1)(2)(3)(4,5,6,7)', '(1,2,3,4)(5)(6)(7)')
+            '(1)(2)(3)(4,5)(6,7)', '(1,2,3,4,6)(5,7)')
+        # this is corresponding vector data computed with full library
         vecs = load_arrays_from_file(os.path.join(
-            "Poincare_Sections", "vecs", "vecs7-4.npy"))
-        print(len(vecs))
-        output = poincare_details_wrapper((perm, vecs), 600)
+            "Poincare_Sections", "vecs", "vecs7-3.npy"))
+        self.assertEqual(len(vecs), 907654)
+
+        start = time.time()
+        output = generate_poincare_section_details(
+            (perm, vecs), 100)
         end = time.time()
-        print(end-start)
-        print(output)
+        print(f'section calculation time: {end-start}')
+        print(f'calculation output: {output}')
 
     def test_poincare_details_small_data(self):
-        start = time.time()
         # this is permutations[4] from generate_permutations(7)
+        print('generating test data')
         perm = Origami(
             '(1)(2)(3)(4,5,6,7)', '(1,2,3,4)(5)(6)(7)')
-        vecs = generate_vectors(perm, 500)
-        output = poincare_details_wrapper((perm, vecs), 600)
-        end = time.time()
-        print(end-start)
-        print(output)
+
+        vecs = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "test_data_4.npy"))
+        self.assertEqual(len(vecs), 1912)
+
+        print('running poincare section computation')
+        t0 = time.time()
+        details_1 = generate_poincare_section_details((perm, vecs), 1)
+        t1 = time.time()
+        print(f'time: {t1-t0}')
+        print(details_1)
+
+        print('running threaded poincare section computation')
+        t0 = time.time()
+        details_2 = threaded_generate_poincare_section_details((perm, vecs), 1)
+        t1 = time.time()
+        print(f'time: {t1-t0}')
+        print(details_2)
+
+        print('running multiprocess poincare section computation')
+        t0 = time.time()
+        details_3 = multiprocess_generate_poincare_section_details(
+            (perm, vecs), 1)
+        t1 = time.time()
+        print(f'time: {t1-t0}')
+        print(details_3)
+        # output = compute_on_cusp(details, vecs)

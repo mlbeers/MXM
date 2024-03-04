@@ -16,6 +16,11 @@ def load_arrays_from_file(file_path):
     return arrays_list
 
 
+def save_arrays_to_file(file_path, arrays_list):
+    # Save arrays to a single NumPy file
+    np.save(file_path, arrays_list)
+
+
 class UtilsTestSuite(unittest.TestCase):
 
     """Test loading vectors with two different ways of constructing the correct relative paths"""
