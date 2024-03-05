@@ -72,7 +72,7 @@ def generate_vectors(permutation, length=200):
     vectors = []
     for sc in saddle_connections:
         vec = sc.holonomy().n()
-        direction = sc.direction  # TODO: what's this for?
+        # direction = sc.direction  # TODO: what's this for?
         if vec not in vectors:
             if (vec[0] >= -length/20 and vec[0] <= length/20) and (vec[1] >= -length/20 and vec[1] <= length/20):
                 vectors.append(vec)
@@ -127,14 +127,15 @@ def inner_generate_vectors(sc_data):
 def try_poincare_details(sts_data):
     perm, vecs = sts_data
     details = []
-    for i in range(100):
+    for i in range(1):
         try:
             alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
-                perm, vecs)
+                (perm, vecs))
 
             details.append((alphas, c_matrices, generators, eigenvectors))
         except:
             pass
+
     return details
 
 
@@ -158,8 +159,9 @@ def threaded_generate_poincare_section_details(sts_data, trys):
 
 def multiprocess_generate_poincare_section_details(sts_data, trys):
     details = []
-    with Pool(20) as p:
-        details = p.map(try_poincare_details, [sts_data for i in range(trys)])
+    with Pool() as p:
+        details = p.map(try_poincare_details, [
+            sts_data for i in range(trys)])
 
     details = [x for x in details if not len(x) == 0]
     return details
@@ -171,7 +173,6 @@ def generate_poincare_section_details(sts_data, trys):
     details = []
     for i in range(trys):
         try:
-            print('calling poincare deets')
             alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
                 (permutation, vectors))
 
@@ -193,8 +194,8 @@ def generate_poincare_section_details(sts_data, trys):
 def compute_on_cusp(details, vectors):
     (alphas, c_matrices, eigenvectors, _) = details
     # 0, 24, 24, 0, 6, 13, 0, 3, 3, 1
-    i = 24
-    j = 1
+    i = 24  # depends on number of times you run poincare_details
+    j = 1  # depends on number of cusps of STS
     n_squares = 7
     dx = 0.0005
     index = 4
@@ -263,12 +264,28 @@ class ComputationsTestSuite(unittest.TestCase):
             "Poincare_Sections", "vecs", "vecs7-3.npy"))
         self.assertEqual(len(vecs), 907654)
 
-        start = time.time()
-        output = generate_poincare_section_details(
-            (perm, vecs), 100)
-        end = time.time()
-        print(f'section calculation time: {end-start}')
-        print(f'calculation output: {output}')
+        # print('running threaded poincare section computation')
+        # t0 = time.time()
+        # details_2 = threaded_generate_poincare_section_details(
+        #     (perm, vecs), 10)
+        # t1 = time.time()
+        # print(f'time: {t1-t0}')
+        # print(details_2)
+
+        print('running multiprocess poincare section computation')
+        t0 = time.time()
+        details_3 = multiprocess_generate_poincare_section_details(
+            (perm, vecs), 3)
+        t1 = time.time()
+        print(f'time: {t1-t0}')
+        print(details_3)
+
+        print('running regular poincare section computation')
+        t0 = time.time()
+        details_1 = generate_poincare_section_details((perm, vecs), 3)
+        t1 = time.time()
+        print(f'time: {t1-t0}')
+        print(details_1)
 
     def test_poincare_details_small_data(self):
         # this is permutations[4] from generate_permutations(7)
@@ -279,13 +296,6 @@ class ComputationsTestSuite(unittest.TestCase):
         vecs = load_arrays_from_file(os.path.join(
             "Poincare_Sections", "vecs", "test_data_4.npy"))
         self.assertEqual(len(vecs), 1912)
-
-        print('running poincare section computation')
-        t0 = time.time()
-        details_1 = generate_poincare_section_details((perm, vecs), 1)
-        t1 = time.time()
-        print(f'time: {t1-t0}')
-        print(details_1)
 
         print('running threaded poincare section computation')
         t0 = time.time()
@@ -301,4 +311,23 @@ class ComputationsTestSuite(unittest.TestCase):
         t1 = time.time()
         print(f'time: {t1-t0}')
         print(details_3)
+
+        print('running regular poincare section computation')
+        t0 = time.time()
+        details_1 = generate_poincare_section_details((perm, vecs), 1)
+        t1 = time.time()
+        print(f'time: {t1-t0}')
+        print(details_1)
         # output = compute_on_cusp(details, vecs)
+
+    def test_winners(self):
+        # this is permutations[3] from generate_permutations(7)
+        perm = Origami(
+            '(1)(2)(3)(4,5)(6,7)', '(1,2,3,4,6)(5,7)')
+        # this is corresponding vector data computed with full library
+        vecs = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "vecs7-3.npy"))
+        details = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "poincare_details_output.txt"))
+
+        compute_on_cusp(details, vecs)
