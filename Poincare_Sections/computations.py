@@ -1,9 +1,9 @@
 import unittest
 from surface_dynamics.all import OrigamiDatabase, Origami
-from sage.all import SymmetricGroup
+from sage.all import SymmetricGroup, matrix
 from flatsurf import translation_surfaces
 import numpy as np
-from .Poincare import poincare_details, poincare_details, winners
+from .Poincare import poincare_details, poincare_details, winners, setup
 from .utils import load_arrays_from_file, save_arrays_to_file  # testing
 import time  # testing
 from multiprocessing import Pool
@@ -194,13 +194,13 @@ def generate_poincare_section_details(sts_data, trys):
 def compute_on_cusp(details, vectors):
     (alphas, c_matrices, eigenvectors, _) = details
     # 0, 24, 24, 0, 6, 13, 0, 3, 3, 1
-    i = 24  # depends on number of times you run poincare_details
+    i = 0  # depends on number of times you run poincare_details
     j = 1  # depends on number of cusps of STS
     n_squares = 7
     dx = 0.0005
     index = 4
     vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
-        alphas[i][j], c_matrices[i][j], eigenvectors[i][j], vectors, dx, False)
+        alphas[i], c_matrices[i], eigenvectors[i], vectors, dx, False)
     df = winners(vecs, x_vals, m0, m1, y0, dx, dx_y)
 
 
@@ -327,7 +327,24 @@ class ComputationsTestSuite(unittest.TestCase):
         # this is corresponding vector data computed with full library
         vecs = load_arrays_from_file(os.path.join(
             "Poincare_Sections", "vecs", "vecs7-3.npy"))
-        details = load_arrays_from_file(os.path.join(
-            "Poincare_Sections", "vecs", "poincare_details_output.txt"))
 
+        generators = []
+        a = perm.veech_group().cusps()
+        print(a)
+        for item in a:
+            m = perm.veech_group().cusp_data(item)[0]
+            generators.append(m.matrix())
+        print(type(generators[0]))
+        details = (
+            [1.0, 1076.0, 104.0, 106.0, 5862.0, 663.0, 10.0, 120.0, 455.0, 119.0],
+
+            [np.array([[1., 0.], [0., 1.]]), np.array([[0.00557628, -0.04275121], [0.04275121,  0.00557628]]), np.array([[0.03846305, -0.19231131], [0.19231131,  0.03846305]]), np.array([[0.03773585, -0.13207547], [0.13207547,  0.03773585]]), np.array([[0.00409406, -0.0317294], [0.0317294,  0.00409406]]),
+             np.array([[0.02262495, -0.06334904], [0.06334904,  0.02262495]]), np.array([[0.,  0.5], [-0.5, -0.]]), np.array([[0.1000019, -0.30000253], [0.30000253,  0.1000019]]), np.array([[0.01538339, -0.12307211], [0.12307211,  0.01538339]]), np.array([[0.05882581, -0.2352984], [0.2352984,  0.05882581]])],
+
+            [matrix([[1, 1], [0, 1]]), matrix([[139, 18], [-1058, -137]]), matrix([[21, 4], [-100, -19]]), matrix([[29, 8], [-98, -27]]), matrix([[745,    96], [-5766,  -743]]), matrix(
+                [[211, 75], [-588, -209]]), matrix([[1,   0], [-10,   1]]), matrix([[37,   12], [-108,  -35]]), matrix([[57,    7], [-448,  -55]]), matrix([[29,    7], [-112,  -27]])],
+
+            [np.array([[1], [0]]), np.array([[1.], [-7.66666667]]), np.array([[1], [-5]]), np.array([[1.], [-3.5]]), np.array([[1.], [-7.75]]),
+             np.array([[1.], [-2.8]]), np.array([[0], [1]]), np.array([[1], [-3]]), np.array([[1], [-8]]), np.array([[1], [-4]])]
+        )
         compute_on_cusp(details, vecs)
