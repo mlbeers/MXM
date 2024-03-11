@@ -10,36 +10,40 @@ import pandas as pd
 import re
 import os
 
+
 def load_arrays_from_file(file_path):
     # Load arrays from the NumPy file
     arrays_list = np.load(file_path, allow_pickle=True)
-    
+
     # Ensure each element in the list is a NumPy array
     arrays_list = [np.array(array) for array in arrays_list]
-    
+
     return arrays_list
+
 
 def compute(seq):
     gaps = list()
-    for i in range(0,len(seq) - 1):
+    for i in range(0, len(seq) - 1):
         gap = seq[i+1] - seq[i]
         gaps.append(abs(gap))
     return gaps
 
+
 def graphing_dict(gaps_list, binwidth):
-    #Create a dictionary
+    # Create a dictionary
     bins_dict = {}
-    #Create bins of width "binwidth" to add slope differences
+    # Create bins of width "binwidth" to add slope differences
     bins = list(np.arange(0, 1, binwidth))
     for bin in bins:
         bins_dict[bin] = 0
-    #add slope gaps to respective bins
+    # add slope gaps to respective bins
     for gap in gaps_list:
         for bin in bins:
             if gap < bin:
                 bins_dict[bin] += 1
                 break
     return bins_dict
+
 
 def plot_distribution(slopes, binwidth):
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -49,8 +53,10 @@ def plot_distribution(slopes, binwidth):
         if gaps_dict[bin] != 0:
             bound = int(bin*8/binwidth)
             break
-    ax.scatter(list(gaps_dict.keys())[:bound], list(gaps_dict.values())[:bound], s = 5)
+    ax.scatter(list(gaps_dict.keys())[:bound],
+               list(gaps_dict.values())[:bound], s=5)
     plt.savefig(os.path.join("gaps", f"{n_squares} - {index}"))
+
 
 def slopes(vecs):
     slopes = []
@@ -60,6 +66,7 @@ def slopes(vecs):
         slope = vec[1] / vec[0]
         slopes.append(slope)
     return slopes
+
 
 n_squares = int(sys.argv[1])
 index = int(sys.argv[2])
