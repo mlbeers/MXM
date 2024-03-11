@@ -127,14 +127,13 @@ def inner_generate_vectors(sc_data):
 def try_poincare_details(sts_data):
     perm, vecs = sts_data
     details = []
-    for i in range(1):
-        try:
-            alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
-                (perm, vecs))
+    try:
+        alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
+            perm, vecs)
 
-            details.append((alphas, c_matrices, generators, eigenvectors))
-        except:
-            pass
+        details.append((alphas, c_matrices, generators, eigenvectors))
+    except:
+        pass
 
     return details
 
