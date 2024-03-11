@@ -3,7 +3,7 @@ from surface_dynamics.all import OrigamiDatabase, Origami
 from sage.all import SymmetricGroup, matrix
 from flatsurf import translation_surfaces
 import numpy as np
-from .Poincare import poincare_details, poincare_details, winners, setup
+from .Poincare import poincare_details, poincare_details, compute_winning_vecs_on_edges, setup, compute_winners_on_entire_section
 from .utils import load_arrays_from_file, save_arrays_to_file  # testing
 import time  # testing
 from multiprocessing import Pool
@@ -190,7 +190,7 @@ def generate_poincare_section_details(sts_data, trys):
 # - the x and y coords of the "section vector"
 # - poincare section plot
 
-def compute_on_cusp(details, vectors):
+def compute_winners(details, vectors):
     (alphas, c_matrices, eigenvectors, _) = details
     # 0, 24, 24, 0, 6, 13, 0, 3, 3, 1
     i = 0  # depends on number of times you run poincare_details
@@ -200,7 +200,12 @@ def compute_on_cusp(details, vectors):
     index = 4
     vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
         alphas[i], c_matrices[i], eigenvectors[i], vectors, dx, False)
-    df = winners(vecs, x_vals, m0, m1, y0, dx, dx_y)
+
+    edge_winners = compute_winning_vecs_on_edges(
+        vecs, x_vals, m0, m1, y0, dx, dx_y)
+    winners_data_frame = compute_winners_on_entire_section(
+        edge_winners, x_vals, m0, m1, y0, dx, dx_y)
+    return winners_data_frame
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -319,13 +324,13 @@ class ComputationsTestSuite(unittest.TestCase):
         print(details_1)
         # output = compute_on_cusp(details, vecs)
 
-    def test_winners(self):
+    def test_compute_winning_vecs_on_edges(self):
         # this is permutations[3] from generate_permutations(7)
         perm = Origami(
             '(1)(2)(3)(4,5)(6,7)', '(1,2,3,4,6)(5,7)')
         # this is corresponding vector data computed with full library
-        vecs = load_arrays_from_file(os.path.join(
-            "Poincare_Sections", "vecs", "vecs7-3.npy"))
+        vectors = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "vecs7-3.npy"))[0:1000]
 
         generators = []
         a = perm.veech_group().cusps()
@@ -346,4 +351,26 @@ class ComputationsTestSuite(unittest.TestCase):
             [np.array([[1], [0]]), np.array([[1.], [-7.66666667]]), np.array([[1], [-5]]), np.array([[1.], [-3.5]]), np.array([[1.], [-7.75]]),
              np.array([[1.], [-2.8]]), np.array([[0], [1]]), np.array([[1], [-3]]), np.array([[1], [-8]]), np.array([[1], [-4]])]
         )
-        compute_on_cusp(details, vecs)
+
+        (alphas, c_matrices, eigenvectors, _) = details
+
+        n_squares = 7
+        dx = 0.0005
+        index = 4
+
+        expected_len = [1, 3, 1, 1, 3, 1, 44, 1, 1, 1]
+        # expected_winners = [[np.array([[0], [2]])],
+        #                     [np.array([[-6.76584374], [0.79554982]]), np.array([[-5.56323358], [0.68216519]]), np.array([[-0.08550242], [0.01115256]])]]
+        for j in range(0, 10):
+            vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
+                alphas[j], c_matrices[j], eigenvectors[j], vectors, dx, False)
+            result = compute_winning_vecs_on_edges(
+                vecs, x_vals, m0, m1, y0, dx, dx_y)
+            print(f'edge winning vecs: {result}')
+            print(f'len: {len(result)}')
+            self.assertEqual(len(result), expected_len[j])
+
+            # numpy doesn't like mock data :(
+            # for i in range(0, len(result)):
+            #     self.assertTrue(np.array_equal(
+            #         result[i], expected_winners[j][i]))
