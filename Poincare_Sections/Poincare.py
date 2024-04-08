@@ -11,6 +11,10 @@ from sympy import Symbol
 from sympy import solve, lambdify
 import os
 import math
+import unittest
+from surface_dynamics.all import Origami
+from .utils import load_arrays_from_file  # testing
+from sage.all import matrix
 
 
 def comp(perm, vecs0, n_squares, index, dx=0.001, dx2=0.005):
@@ -734,3 +738,63 @@ def get_symbolic_eqn(pwlf_, segment_number):
                 my_eqn += (pwlf_.beta[beta_index]) * \
                     (x-pwlf_.fit_breaks[line])**k
     return my_eqn.simplify()
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~ Tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+class ComputationsTestSuite(unittest.TestCase):
+    """Basic test cases."""
+
+    def test_compute_winning_vecs_on_edges(self):
+        # this is permutations[3] from generate_permutations(7)
+        perm = Origami(
+            '(1)(2)(3)(4,5)(6,7)', '(1,2,3,4,6)(5,7)')
+        # this is corresponding vector data computed with full library
+        vectors = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "vecs7-3.npy"))[0:1000]
+
+        generators = []
+        a = perm.veech_group().cusps()
+        print(a)
+        for item in a:
+            m = perm.veech_group().cusp_data(item)[0]
+            generators.append(m.matrix())
+        print(type(generators[0]))
+        details = (
+            [1.0, 1076.0, 104.0, 106.0, 5862.0, 663.0, 10.0, 120.0, 455.0, 119.0],
+
+            [np.array([[1., 0.], [0., 1.]]), np.array([[0.00557628, -0.04275121], [0.04275121,  0.00557628]]), np.array([[0.03846305, -0.19231131], [0.19231131,  0.03846305]]), np.array([[0.03773585, -0.13207547], [0.13207547,  0.03773585]]), np.array([[0.00409406, -0.0317294], [0.0317294,  0.00409406]]),
+             np.array([[0.02262495, -0.06334904], [0.06334904,  0.02262495]]), np.array([[0.,  0.5], [-0.5, -0.]]), np.array([[0.1000019, -0.30000253], [0.30000253,  0.1000019]]), np.array([[0.01538339, -0.12307211], [0.12307211,  0.01538339]]), np.array([[0.05882581, -0.2352984], [0.2352984,  0.05882581]])],
+
+            [matrix([[1, 1], [0, 1]]), matrix([[139, 18], [-1058, -137]]), matrix([[21, 4], [-100, -19]]), matrix([[29, 8], [-98, -27]]), matrix([[745,    96], [-5766,  -743]]), matrix(
+                [[211, 75], [-588, -209]]), matrix([[1,   0], [-10,   1]]), matrix([[37,   12], [-108,  -35]]), matrix([[57,    7], [-448,  -55]]), matrix([[29,    7], [-112,  -27]])],
+
+            [np.array([[1], [0]]), np.array([[1.], [-7.66666667]]), np.array([[1], [-5]]), np.array([[1.], [-3.5]]), np.array([[1.], [-7.75]]),
+             np.array([[1.], [-2.8]]), np.array([[0], [1]]), np.array([[1], [-3]]), np.array([[1], [-8]]), np.array([[1], [-4]])]
+        )
+
+        (alphas, c_matrices, eigenvectors, _) = details
+
+        n_squares = 7
+        dx = 0.0005
+        index = 4
+
+        expected_len = [1, 3, 1, 1, 3, 1, 44, 1, 1, 1]
+        # expected_winners = [[np.array([[0], [2]])],
+        #                     [np.array([[-6.76584374], [0.79554982]]), np.array([[-5.56323358], [0.68216519]]), np.array([[-0.08550242], [0.01115256]])]]
+        print("here")
+        for j in range(0, 10):
+            vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
+                alphas[j], c_matrices[j], eigenvectors[j], vectors, dx, False)
+            result = compute_winning_vecs_on_edges(
+                vecs, x_vals, m0, m1, y0, dx, dx_y)
+            print(f'edge winning vecs: {result}')
+            print(f'len: {len(result)}')
+            self.assertEqual(len(result), expected_len[j])
+
+            # numpy doesn't like mock data :(
+            # for i in range(0, len(result)):
+            #     self.assertTrue(np.array_equal(
+            #         result[i], expected_winners[j][i]))
