@@ -14,7 +14,8 @@ import math
 import unittest
 from surface_dynamics.all import Origami
 from .utils import load_arrays_from_file  # testing
-from sage.all import matrix
+from sage.all import matrix  # testing
+import time  # testing
 
 
 def comp(perm, vecs0, n_squares, index, dx=0.001, dx2=0.005):
@@ -220,7 +221,6 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
     x_vals = np.arange(dx, 1, dx)
     # for the poincare section with matrix c, the original saddle connections are acted on by this matrix
     vecs1 = c@vecs0
-    print(len(vecs1))
     # find vectors such that -10 <= x <= 10 and 0 < y <= 10
     vecs = []
     for item in vecs1:
@@ -245,7 +245,7 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
     x0 = sec_vec[0][0]
     y0 = sec_vec[1][0]
 
-    print(x0, y0)
+    # print(x0, y0)
     # slopes of top and bottom lines of section
     if improved == True:
         m0 = -x0/y0
@@ -268,6 +268,34 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
 # (long) list of vectors. The winning vector is the one with 0 < x <= 1 and
 # smallest slope.
 
+def compute_winner_at_point(vecs, x_vals, y0, dx, Mab):
+    winner_slope = None
+    winner = None
+    for vec in vecs:  # this is the slowdown
+        new = Mab@vec
+        if float(new[0][0]) == 0:
+            continue
+        x = float(new[0][0])
+        y = float(new[1][0])
+        if y/x <= 0:
+            continue
+        if x <= 1 and x > 0:
+            if winner_slope == None:
+                winner_slope = y/x
+                winner = vec
+                continue
+    # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+            elif abs(y/x - winner_slope) <= dx/1000:
+                if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
+                    winner = vec
+                    continue
+            elif y/x < winner_slope:
+                winner_slope = y/x
+                winner = vec
+
+    return winner
+
+
 def compute_winning_vecs_on_edges(vecs, x_vals, m0, m1, y0, dx, dx_y):
     # dictionary for plotting
     saddle_dict = {}
@@ -282,94 +310,19 @@ def compute_winning_vecs_on_edges(vecs, x_vals, m0, m1, y0, dx, dx_y):
     # given a list of vectors, compute the "winner" vector, which is the vector
     # with 0 < x < 1 and the smallest slope
     for a in x_vals:
-        check = 0
-        winner_slope = None
-        winner = None
         Mab = np.array([[a, 1-dx/y0], [0, a]])
-        for vec in vecs:  # this is the slowdown
-            new = Mab@vec
-            if float(new[0][0]) == 0:
-                continue
-            x = float(new[0][0])
-            y = float(new[1][0])
-            if y/x <= 0:
-                continue
-            if x <= 1 and x > 0:
-                if winner_slope == None:
-                    winner_slope = y/x
-                    winner = vec
-                    continue
-        # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
-                elif abs(y/x - winner_slope) <= dx/1000:
-                    if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
-                        winner = vec
-                        continue
-                elif y/x < winner_slope:
-                    winner_slope = y/x
-                    winner = vec
-                    continue
-        winners.append(winner)
+        winners.append(compute_winner_at_point(vecs, x_vals, y0, dx, Mab))
     print(1)
 
     for a in x_vals:
-        check = 0
-        winner_slope = None
-        winner = None
         Mab = np.array([[a, m1*a + 1-dx/y0 + dx_y], [0, a]])
-        for vec in vecs:
-            new = Mab@vec
-            if float(new[0][0]) == 0:
-                continue
-            x = float(new[0][0])
-            y = float(new[1][0])
-            if y/x <= 0:
-                continue
-            if x <= 1 and x > 0:
-                if winner_slope == None:
-                    winner_slope = y/x
-                    winner = vec
-                    continue
-        # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
-                elif abs(y/x - winner_slope) <= dx/1000:
-                    if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
-                        winner = vec
-                        continue
-                elif y/x < winner_slope:
-                    winner_slope = y/x
-                    winner = vec
-                    continue
-        winners.append(winner)
+        winners.append(compute_winner_at_point(vecs, x_vals, y0, dx, Mab))
     print(2)
 
     y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 + (1-dx)/y0 - dx_y, 10*dx_y)
     for b in y_vals:
-        check = 0
-        winner_slope = None
-        winner = None
         Mab = np.array([[1 - dx, b], [0, 1-dx]])
-        for vec in vecs:
-            new = Mab@vec
-            if float(new[0][0]) == 0:
-                continue
-            x = float(new[0][0])
-            y = float(new[1][0])
-            if y/x <= 0:
-                continue
-            if x <= 1 and x > 0:
-                if winner_slope == None:
-                    winner_slope = y/x
-                    winner = vec
-                    continue
-        # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
-                elif abs(y/x - winner_slope) <= dx/1000:
-                    if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
-                        winner = vec
-                        continue
-                elif y/x < winner_slope:
-                    winner_slope = y/x
-                    winner = vec
-                    continue
-        winners.append(winner)
+        winners.append(compute_winner_at_point(vecs, x_vals, y0, dx, Mab))
     print(3)
 
     winners2 = []
@@ -757,39 +710,40 @@ class ComputationsTestSuite(unittest.TestCase):
 
         generators = []
         a = perm.veech_group().cusps()
-        print(a)
+        # TODO: fix a  to actually have validatable output data = [Infinity, -4/7, -1/5, -5/29, -3/5, -15/22, 0, -2/3, -1/2, -1/6]
+        print(f'cusps:{a}')
+        # print(type(a[0]))
         for item in a:
             m = perm.veech_group().cusp_data(item)[0]
             generators.append(m.matrix())
-        print(type(generators[0]))
-        details = (
-            [1.0, 1076.0, 104.0, 106.0, 5862.0, 663.0, 10.0, 120.0, 455.0, 119.0],
 
-            [np.array([[1., 0.], [0., 1.]]), np.array([[0.00557628, -0.04275121], [0.04275121,  0.00557628]]), np.array([[0.03846305, -0.19231131], [0.19231131,  0.03846305]]), np.array([[0.03773585, -0.13207547], [0.13207547,  0.03773585]]), np.array([[0.00409406, -0.0317294], [0.0317294,  0.00409406]]),
-             np.array([[0.02262495, -0.06334904], [0.06334904,  0.02262495]]), np.array([[0.,  0.5], [-0.5, -0.]]), np.array([[0.1000019, -0.30000253], [0.30000253,  0.1000019]]), np.array([[0.01538339, -0.12307211], [0.12307211,  0.01538339]]), np.array([[0.05882581, -0.2352984], [0.2352984,  0.05882581]])],
-
-            [matrix([[1, 1], [0, 1]]), matrix([[139, 18], [-1058, -137]]), matrix([[21, 4], [-100, -19]]), matrix([[29, 8], [-98, -27]]), matrix([[745,    96], [-5766,  -743]]), matrix(
-                [[211, 75], [-588, -209]]), matrix([[1,   0], [-10,   1]]), matrix([[37,   12], [-108,  -35]]), matrix([[57,    7], [-448,  -55]]), matrix([[29,    7], [-112,  -27]])],
-
-            [np.array([[1], [0]]), np.array([[1.], [-7.66666667]]), np.array([[1], [-5]]), np.array([[1.], [-3.5]]), np.array([[1.], [-7.75]]),
-             np.array([[1.], [-2.8]]), np.array([[0], [1]]), np.array([[1], [-3]]), np.array([[1], [-8]]), np.array([[1], [-4]])]
-        )
-
-        (alphas, c_matrices, eigenvectors, _) = details
+        # mock data for setup
+        alphas = [1.0, 1076.0, 104.0, 106.0, 5862.0,
+                  663.0, 10.0, 120.0, 455.0, 119.0]
+        c_matrices = [np.array([[1., 0.], [0., 1.]]), np.array([[0.00557628, -0.04275121], [0.04275121,  0.00557628]]), np.array([[0.03846305, -0.19231131], [0.19231131,  0.03846305]]), np.array([[0.03773585, -0.13207547], [0.13207547,  0.03773585]]), np.array([[0.00409406, -0.0317294], [0.0317294,  0.00409406]]),
+                      np.array([[0.02262495, -0.06334904], [0.06334904,  0.02262495]]), np.array([[0.,  0.5], [-0.5, -0.]]), np.array([[0.1000019, -0.30000253], [0.30000253,  0.1000019]]), np.array([[0.01538339, -0.12307211], [0.12307211,  0.01538339]]), np.array([[0.05882581, -0.2352984], [0.2352984,  0.05882581]])]
+        eigenvectors = [matrix([[1, 1], [0, 1]]), matrix([[139, 18], [-1058, -137]]), matrix([[21, 4], [-100, -19]]), matrix([[29, 8], [-98, -27]]), matrix([[745,    96], [-5766,  -743]]), matrix(
+            [[211, 75], [-588, -209]]), matrix([[1,   0], [-10,   1]]), matrix([[37,   12], [-108,  -35]]), matrix([[57,    7], [-448,  -55]]), matrix([[29,    7], [-112,  -27]])]
+        # last_piece_of_details = [np.array([[1], [0]]), np.array([[1.], [-7.66666667]]), np.array([[1], [-5]]), np.array([[1.], [-3.5]]), np.array([[1.], [-7.75]]),
+        #      np.array([[1.], [-2.8]]), np.array([[0], [1]]), np.array([[1], [-3]]), np.array([[1], [-8]]), np.array([[1], [-4]])]
 
         n_squares = 7
         dx = 0.0005
         index = 4
 
         expected_len = [1, 3, 1, 1, 3, 1, 44, 1, 1, 1]
+        # TODO: test against expected values,
         # expected_winners = [[np.array([[0], [2]])],
         #                     [np.array([[-6.76584374], [0.79554982]]), np.array([[-5.56323358], [0.68216519]]), np.array([[-0.08550242], [0.01115256]])]]
-        print("here")
         for j in range(0, 10):
             vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
                 alphas[j], c_matrices[j], eigenvectors[j], vectors, dx, False)
+
+            t0 = time.time()
             result = compute_winning_vecs_on_edges(
                 vecs, x_vals, m0, m1, y0, dx, dx_y)
+            t1 = time.time()
+            print(f'time: {t1-t0}')
             print(f'edge winning vecs: {result}')
             print(f'len: {len(result)}')
             self.assertEqual(len(result), expected_len[j])
