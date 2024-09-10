@@ -26,7 +26,9 @@ At the end of the day: (make sure you're on a branch! don't work on master)
 
 `git commit -m "your message here"` - commit the changes with a message  
 
-`git push` - push the changes to github
+`git push` - push the changes to github OR
+
+`git push --set-upstream origin BRANCHNAME` - push a new branch to github
 
 
 ## Prerequisites 
