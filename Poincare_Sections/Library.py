@@ -8,75 +8,14 @@ import sympy as sym
 from sympy import Symbol
 from sympy import solve, lambdify
 import math
+from surface_dynamics.all import *
+from time import time
+from scipy import integrate
 import unittest
 from surface_dynamics.all import Origami
 from .utils import load_arrays_from_file  # testing
 from sage.all import matrix  # testing
 import time  # testing
-from surface_dynamics.all import *
-from time import time
-from scipy import integrate
-
-
-def comp(perm, vecs0, n_squares, index, dx=0.001, dx2=0.005):
-    # check that -id in veech group
-    if [-1, 0, 0, -1] not in perm.veech_group():
-        raise ValueError("-id not in veech group")
-    if os.path.exists(os.path.join("results", f"{n_squares} - {index}")):
-        pass
-    else:
-        os.mkdir(os.path.join("results", f"{n_squares} - {index}"))
-
-    section_geometry = []
-    prob_times = []
-    vals = []
-    for i in range(20):
-        try:
-            alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs = poincare_details(
-                perm, vecs0)
-            break
-        except:
-            continue
-
-    for i in range(len(alphas)):  # change back to len(alphas)
-        print("")
-        print(f'alpha = {alphas[i]}')
-
-        try:
-            vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
-                alphas[i], Cs[i], eigs[i], vecs0, dx)
-            df = winners(vecs, x_vals, m0, m1, y0, dx, dx_y)
-            plot(df, vecs, Cs[i], i, n_squares, index)
-            sec_list = sec_setup(df, dx_y)
-            secs = sec_comp(sec_list, dx)
-            section_geometry.append(secs)
-            prob_times.extend(time_comp(secs))
-            pdf(list(df["time"]), time_comp(secs), dx)
-            plt.savefig(os.path.join(
-                "results", f"{n_squares} - {index}", f"pdf {i}"))
-            plt.close()
-            vals.extend(list(df["time"]))
-        except:
-            continue
-    discontinuities = []
-    prob_times.sort()
-    for i in range(len(prob_times) - 1):
-        if prob_times[i+1] - prob_times[i] >= 0.05:
-            discontinuities.append(prob_times[i])
-    if len(prob_times) >= 1:
-        discontinuities.append(prob_times[-1])
-    pdf(vals, discontinuities, dx)
-    plt.savefig(os.path.join("results", f"{n_squares} - {index}", "pdf"))
-
-    file = open(os.path.join(
-        "results", f"{n_squares} - {index}", "geometry"), "a")
-    file.write(f"Problem Times:  {discontinuities}\n")
-    for i in range(len(section_geometry)):
-        file.write(f"Section: {i+1}\n")
-        for sec in section_geometry[i]:
-            file.write(
-                f"top: {sec.points_top}\nbottom: {sec.points_bottom}\n\ntop_eqs: {sec.top}\nbottom_eqs: {sec.bottom}\n\n\n")
-    file.close()
 
 
 # For each cusp of the square tiled surface, computes a generating matrix and
@@ -369,6 +308,9 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
     y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 +
                        (1-dx)/y0 - dx_y, dz*(m0-m1))
     for b in y_vals:
+        check = 0
+        winner_slope = None
+        winner = None
         Mab = np.array([[1 - dx, b], [0, 1-dx]])
         for vec in vecs:
             new = Mab@vec
@@ -405,8 +347,6 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
     for item in possible_vecs1:
         possible_vecs.append(item)
 
-
-def compute_winners_on_entire_section(edge_vecs, x_vals, m0, m1, y0, dx, dx_y):
     global label_dict
     label_dict = {}
 
@@ -430,13 +370,12 @@ def compute_winners_on_entire_section(edge_vecs, x_vals, m0, m1, y0, dx, dx_y):
     # for each point (a,b) in the poincare section, apply the Mab matrix to each vector and look for "winners". Winners have smallest possible slope that is greater than zero and 0 < x-component <= 1
     for a in x_vals:
         y_vals = np.arange(m1*a + 1/y0 + dx_y, m0*a + 1/y0 - dx_y, dx_y)
-        for b in y_vals:  # this and the x vals for loop is also a slowdown
+        for b in y_vals:
             check = 0
             winner_slope = None
             winner = None
             Mab = np.array([[a, b], [0, 1/a]])
-            # not too bad (running thru 5 or 6 points)
-            for vec in edge_vecs:
+            for vec in possible_vecs:
                 new = Mab@vec
                 if float(new[0][0]) == 0:
                     continue
@@ -462,8 +401,8 @@ def compute_winners_on_entire_section(edge_vecs, x_vals, m0, m1, y0, dx, dx_y):
             saddle_dict["x"].append(a)
             saddle_dict["y"].append(b)
             saddle_dict["vec"].append(winner)
-            for i in range(len(edge_vecs)):
-                if np.array_equal(winner, edge_vecs[i]):
+            for i in range(len(possible_vecs)):
+                if np.array_equal(winner, possible_vecs[i]):
                     check += 1
                     saddle_dict["lab"].append(i)
                     saddle_dict["time"].append(t_dict[i](a, b))
@@ -475,7 +414,6 @@ def compute_winners_on_entire_section(edge_vecs, x_vals, m0, m1, y0, dx, dx_y):
                 saddle_dict["time"].append(1000)
 
     df = pd.DataFrame.from_dict(saddle_dict)
-    print(f'data frame: {df}')
     return df
 
 
@@ -880,10 +818,10 @@ def read_df(n_squares, index, cusp):
     df["vec"] = df["vec"].apply(read_vec)
     return df
 
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~ Tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 class ComputationsTestSuite(unittest.TestCase):
     """Basic test cases."""
