@@ -45,8 +45,7 @@ e = []
 g = []
 for num in range(200):
     try:
-        generators = generators(perm, vecs0)
-        alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs = poincare_details(perm, vecs0, generators)
+        alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs = poincare_details(perm, vecs0)
     except:
         continue
     a.append(alphas)

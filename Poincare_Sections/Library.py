@@ -14,8 +14,17 @@ import math
 from surface_dynamics.all import *
 from time import time
 from scipy import integrate
+
+def generators(perm, vecs0):
+    #find the generators of each cusp of the STS
+    generators = []
+    a = perm.veech_group().cusps()
+    for item in a:
+        m = perm.veech_group().cusp_data(item)[0]
+        generators.append(m.matrix())
+    return generators
     
-def poincare_details(perm, vecs0):
+def poincare_details(perm, vecs0, generators):
     #find the generators of each cusp of the STS
     generators = []
     a = perm.veech_group().cusps()
