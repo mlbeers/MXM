@@ -228,6 +228,7 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
 #
 # output: TODO
 def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
+    print("start")
     # dictionary for plotting
     saddle_dict = {}
     saddle_dict["x"] = []
@@ -268,36 +269,37 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
                     winner = vec
                     continue
         winners.append(winner)
+    print("top")
 
     # diagonal
-    for a in np.arange(0 + dz, 1, dz):
-        check = 0
-        winner_slope = None
-        winner = None
-        Mab = np.array([[a, m1*a + 1-dx/y0 + dx_y], [0, a]])
-        for vec in vecs:
-            new = Mab@vec
-            if float(new[0][0]) == 0:
-                continue
-            x = float(new[0][0])
-            y = float(new[1][0])
-            if y/x <= 0:
-                continue
-            if x <= 1 and x > 0:
-                if winner_slope == None:
-                    winner_slope = y/x
-                    winner = vec
-                    continue
+    #for a in np.arange(0 + dz, 1, dz):
+        #check = 0
+        #winner_slope = None
+        #winner = None
+        #Mab = np.array([[a, m1*a + 1-dx/y0 + dx_y], [0, a]])
+        #for vec in vecs:
+            #new = Mab@vec
+            #if float(new[0][0]) == 0:
+                #continue
+            #x = float(new[0][0])
+            #y = float(new[1][0])
+            #if y/x <= 0:
+                #continue
+            #if x <= 1 and x > 0:
+                #if winner_slope == None:
+                    #winner_slope = y/x
+                    #winner = vec
+                    #continue
        # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
-                elif abs(y/x - winner_slope) <= dx/1000:
-                    if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
-                        winner = vec
-                        continue
-                elif y/x < winner_slope:
-                    winner_slope = y/x
-                    winner = vec
-                    continue
-        winners.append(winner)
+                #elif abs(y/x - winner_slope) <= dx/1000:
+                    #if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
+                        #winner = vec
+                        #continue
+                #elif y/x < winner_slope:
+                    #winner_slope = y/x
+                    #winner = vec
+                    #continue
+        #winners.append(winner)
 
     # side edge
     y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 +
@@ -330,6 +332,7 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
                     winner = vec
                     continue
         winners.append(winner)
+    print("side")
 
     winners2 = []
     for winner in winners:
@@ -812,3 +815,227 @@ def read_df(n_squares, index, cusp):
 
     df["vec"] = df["vec"].apply(read_vec)
     return df
+
+
+
+
+
+
+
+def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
+    # dictionary for plotting
+    saddle_dict = {}
+    saddle_dict["x"] = []
+    saddle_dict["y"] = []
+    saddle_dict["lab"] = []
+    saddle_dict["vec"] = []
+    saddle_dict["time"] = []
+    possible_vecs = []
+    winners = []
+    dz = 1 / 100
+    vecs = np.hstack(vecs0)  # Each vec is a column in this 2D array
+    
+    # top edge
+    # Stack list of numpy arrays into a single 2D array
+    t0 = time()
+    for a in np.arange(dz, 1, dz):
+        Mab = np.array([[a, 1 - dx / y0], [0, a]])  # Matrix stays outside the inner loop
+    
+        # Apply the transformation to all vectors at once
+        new_vecs = Mab @ vecs
+    
+        # Extract x and y components
+        x_comps = new_vecs[0, :]
+        y_comps = new_vecs[1, :]
+    
+        # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
+        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
+    
+        valid_x = x_comps[valid_mask]
+        valid_y = y_comps[valid_mask]
+        valid_vecs = vecs[:, valid_mask]  # Apply the mask to filter valid vectors
+    
+        if valid_x.size == 0:
+            winners.append(None)
+            continue
+    
+        # Calculate slopes
+        slopes = valid_y / valid_x
+    
+        # Find the minimum slope and handle continuity cases
+        min_slope_idx = np.argmin(slopes)
+        winner_slope = slopes[min_slope_idx]
+        winner = valid_vecs[:, min_slope_idx]
+    
+        # Handle continuity by finding the smallest vector if slopes are close
+        for i, slope in enumerate(slopes):
+            if np.abs(slope - winner_slope) <= dx / 1000:
+                if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
+                    winner = valid_vecs[:, i]
+    
+        winners.append(winner.reshape(2,1))
+    t1 = time()
+    print("top done: " + str(t1 - t0))
+    
+    # diagonal
+    #for a in np.arange(0 + dz, 1, dz):
+        #Mab = np.array([[a, m1*a + 1-dx/y0 + dx_y], [0, a]])
+        # Apply the transformation to all vectors at once
+        #new_vecs = Mab @ vecs
+    
+        # Extract x and y components
+        #x_comps = new_vecs[0, :]
+        #y_comps = new_vecs[1, :]
+    
+        # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
+        #valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
+    
+        #valid_x = x_comps[valid_mask]
+        #valid_y = y_comps[valid_mask]
+        #valid_vecs = vecs[:, valid_mask]  # Apply the mask to filter valid vectors
+    
+        #if valid_x.size == 0:
+            #winners.append(None)
+            #continue
+    
+        # Calculate slopes
+        #slopes = valid_y / valid_x
+    
+        # Find the minimum slope and handle continuity cases
+        #min_slope_idx = np.argmin(slopes)
+        #winner_slope = slopes[min_slope_idx]
+        #winner = valid_vecs[:, min_slope_idx]
+    
+        # Handle continuity by finding the smallest vector if slopes are close
+        #for i, slope in enumerate(slopes):
+            #if np.abs(slope - winner_slope) <= dx / 1000:
+                #if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
+                    #winner = valid_vecs[:, i]
+    
+        #winners.append(winner.reshape(2,1))
+
+    # side edge
+    t0 = time()
+    y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 +
+                       (1-dx)/y0 - dx_y, dz*(m0-m1))
+    for b in y_vals:
+        Mab = np.array([[1 - dx, b], [0, 1-dx]])
+        # Apply the transformation to all vectors at once
+        new_vecs = Mab @ vecs
+    
+        # Extract x and y components
+        x_comps = new_vecs[0, :]
+        y_comps = new_vecs[1, :]
+    
+        # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
+        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
+    
+        valid_x = x_comps[valid_mask]
+        valid_y = y_comps[valid_mask]
+        valid_vecs = vecs[:, valid_mask]  # Apply the mask to filter valid vectors
+    
+        if valid_x.size == 0:
+            winners.append(None)
+            continue
+    
+        # Calculate slopes
+        slopes = valid_y / valid_x
+    
+        # Find the minimum slope and handle continuity cases
+        min_slope_idx = np.argmin(slopes)
+        winner_slope = slopes[min_slope_idx]
+        winner = valid_vecs[:, min_slope_idx]
+    
+        # Handle continuity by finding the smallest vector if slopes are close
+        for i, slope in enumerate(slopes):
+            if np.abs(slope - winner_slope) <= dx / 1000:
+                if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
+                    winner = valid_vecs[:, i]
+        winners.append(winner.reshape(2,1))
+    t1 = time()
+    print("side done: " + str(t1 - t0))
+    
+    winners2 = []
+    for winner in winners:
+        try:
+            if winner == None:
+                continue
+        except:
+            winners2.append(winner)
+    possible_vecs1 = np.unique(winners2, axis=0)
+    for item in possible_vecs1:
+        possible_vecs.append(item)
+
+    global label_dict
+    label_dict = {}
+
+    # dictionary for vector labels
+    for i in range(len(possible_vecs)):
+        label_dict[i] = possible_vecs[i]
+
+    # for each vector, there is a time function defined as f(a,b) where a,b are points in the poincare section
+    global t_dict
+    t_dict = {}
+
+    x, y, t = sym.symbols('x y t')
+    Mab = np.array([[x, y], [0, 1/x]])
+    horo = np.array([[1, 0], [-t, 1]])
+
+    for i in range(len(possible_vecs)):
+        # apply Mab matrix, perform horocycle flow and find time t to horizontal
+        a = horo@(Mab@possible_vecs[i])
+        t_dict[i] = lambdify([x, y], solve(a[1][0], t)[0])
+
+    # for each point (a,b) in the poincare section, apply the Mab matrix to each vector and look for "winners". Winners have smallest possible slope that is greater than zero and 0 < x-component <= 1
+    for a in x_vals:
+        y_vals = np.arange(m1*a + 1/y0 + dx_y, m0*a + 1/y0 - dx_y, dx_y)
+        for b in y_vals:
+            check = 0
+            winner_slope = None
+            winner = None
+            Mab = np.array([[a, b], [0, 1/a]])
+            for vec in possible_vecs:
+                new = Mab@vec
+                if float(new[0][0]) == 0:
+                    continue
+                x = float(new[0][0])
+                y = float(new[1][0])
+                if y/x <= 0:
+                    continue
+                if x <= 1 and x > 0:
+                    if winner_slope == None:
+                        winner_slope = y/x
+                        winner = vec
+                        continue
+            # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+                    elif abs(y/x - winner_slope) <= dx/1000:
+                        if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
+                            winner = vec
+                            continue
+                    elif y/x < winner_slope:
+                        winner_slope = y/x
+                        winner = vec
+                        continue
+
+            saddle_dict["x"].append(a)
+            saddle_dict["y"].append(b)
+            saddle_dict["vec"].append(winner)
+            for i in range(len(possible_vecs)):
+                if np.array_equal(winner, possible_vecs[i]):
+                    check += 1
+                    saddle_dict["lab"].append(i)
+                    saddle_dict["time"].append(t_dict[i](a, b))
+                    if saddle_dict["time"][-1] < 0:
+                        saddle_dict["time"][-1] = 1000
+            # if there is no winner, at (a,b), add a label so the df and plot can still be made. These section will later be made blank for trouble-shoooting
+            if check == 0:
+                saddle_dict["lab"].append(len(vecs0))
+                saddle_dict["time"].append(1000)
+
+    df = pd.DataFrame.from_dict(saddle_dict)
+    return df
+
+
+
+
+
