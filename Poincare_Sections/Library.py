@@ -1108,7 +1108,7 @@ class ComputationsTestSuite(unittest.TestCase):
                 alphas[j], c_matrices[j], eigenvectors[j], vectors, dx, False)
 
             t0 = time.time()
-            result = compute_winning_vecs_on_edges(
+            result = winners(
                 vecs, x_vals, m0, m1, y0, dx, dx_y)
             t1 = time.time()
             print(f'time: {t1-t0}')

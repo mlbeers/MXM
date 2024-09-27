@@ -77,12 +77,12 @@ in the following files:
 
 ## Test suite status
 Currently there are tests on the following files and functions:
-#### In `Poincare_Sections/computations.py`:
+#### In `Poincare_Sections/Library.py`:
 - generate_permutations
+- poincare_details (look for the try_poincare_details wrapper)
+- winners
+#### In `Poincare_Sections/vector.py`:
 - generate_vectors
-- poincare_details (look for the generate_poincare_section_details wrapper)
-#### In `Poincare_Sections/Poincare.py`:
-- compute_winning_vecs_on_edges
 
 ## Running unit tests
 run all unit tests on a file
