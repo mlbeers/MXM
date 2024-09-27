@@ -84,7 +84,7 @@ Currently there are tests on the following files and functions:
 #### In `Poincare_Sections/vector.py`:
 - generate_vectors
 
-## Running unit tests
+## Running unit tests locally
 run all unit tests on a file
 `sage --python3 -m unittest Poincare_Sections/computations.py`
 
@@ -92,6 +92,21 @@ run a specific test
 `sage --python3 -m unittest Poincare_Sections/computations.py -k test_generating_permutations`
 
 This will use sage's install of python to run the python module unittest framework.
+
+## Running unit tests on server
+Full instructions can be found here: https://code.visualstudio.com/docs/remote/ssh
+
+Make sure you have the VSCode Remote SSH extension installed: https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh
+
+command-shift-P to bring up the command pallet, type `Remote-SSH` and select `Remote-SSH: add ssh host`, then 
+copy and past the following into the box that appears (replace YOURUSERNAME with your math IT account username):
+```ssh -J YOURUSERNAME@login.math.wisc.edu YOURUSERNAME@magma2.math.wisc.edu```
+then press enter, and press enter again to save the host to your VSCode settings.
+
+Bring up the command pallet again, and select `Remote-SSH: connect to host`. It will ask you for your password twice, and you might also see a screen telling you the host keys have changed. Once this finishes, you'll be connected to the math server! You can open code and terminals just like locally, but everything will be modified on the math servers.
+
+You'll need to clone the repository again and set up git keys, and then you can work and test in the same place! 
+
 
 ## Running Tests
 The following code will give you all the info needed about a section and shape. If you wish to test something,
