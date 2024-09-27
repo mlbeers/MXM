@@ -21,11 +21,11 @@ import traceback
 import dill
 import sys
 
-#number of squares for STS
+# number of squares for STS
 n_squares = int(sys.argv[1])
-#index to start at
+# index to start at
 index = int(sys.argv[2])
-#cusp
+# cusp
 j = int(sys.argv[3])
 
 dx = 0.0005
@@ -38,18 +38,19 @@ vecs0 = load_arrays_from_file(os.path.join("vecs", vec_file))
 
 with open(os.path.join("results", f"{n_squares} - {index}", "setup.dill"), 'rb') as f:
     loaded_data = dill.load(f)
-a,c,e,g = loaded_data
+a, c, e, g = loaded_data
 print("loaded")
 
-#change back to False in future
+# change back to False in future
 improved = True
 if j == 0:
     improved = True
-    
+
 for i in range(len(a)):
 
-    #get dimensions of section 
-    vecs, x_vals, m0, m1, x0, y0, dx_y, z = setup(a[i][j], c[i][j], e[i][j], vecs0, dx, improved)
+    # get dimensions of section
+    vecs, x_vals, m0, m1, x0, y0, dx_y, z = setup(
+        a[i][j], c[i][j], e[i][j], vecs0, dx, improved)
     print(z)
     print("i = " + str(i), "j = " + str(j))
 
@@ -57,31 +58,32 @@ for i in range(len(a)):
         print("too small")
         continue
 
-    #create a dataframe with winning vector at certain points in the section
+    # create a dataframe with winning vector at certain points in the section
     df = winners(vecs, x_vals, m0, m1, y0, dx, dx_y)
 
-    #plot poincare section and save
+    # plot poincare section and save
     try:
-        plot(df, vecs, c[i][j], j, n_squares, index, test = False)
+        plot(df, vecs, c[i][j], j, n_squares, index, test=False)
     except Exception as error:
         print(error)
         continue
-    df.to_csv(os.path.join("results", f"{n_squares} - {index}", "df - " + str(j)), index=False)
+    df.to_csv(os.path.join(
+        "results", f"{n_squares} - {index}", "df - " + str(j)), index=False)
 
-    #make section object that define winning vector and line equations for boundaries of subsections
+    # make section object that define winning vector and line equations for boundaries of subsections
     sec_list = sec_setup(df, dx_y)
     secs = sec_comp(sec_list, dx)
     with open(os.path.join("results", f"{n_squares} - {index}", "secs - " + str(j) + ".dill"), 'wb') as f:
         dill.dump(secs, f)
-        
+
     times = [1]
     if improved:
         times = time_comp(secs)
 
-    #plot the pdf for each cusp
+    # plot the pdf for each cusp
     pdf(list(df["time"]), times, dx*2, n_squares, index, j)
 
-    #get covolume calculations
+    # get covolume calculations
     covol = covolume(secs)
     print(covol)
 
