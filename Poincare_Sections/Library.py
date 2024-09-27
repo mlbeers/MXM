@@ -228,7 +228,6 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
 #
 # output: TODO
 def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
-    print("start")
     # dictionary for plotting
     saddle_dict = {}
     saddle_dict["x"] = []
@@ -239,6 +238,7 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
     possible_vecs = []
     winners = []
 
+    t0 = time()
     # top edge
     dz = 1/100
     for a in np.arange(dz, 1, dz):
@@ -269,8 +269,10 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
                     winner = vec
                     continue
         winners.append(winner)
-    print("top")
+    t1 = time()
+    print("top done: " + str(t1 - t0))
 
+    # could re-include if we need to do computations on all sides
     # diagonal
     #for a in np.arange(0 + dz, 1, dz):
         #check = 0
@@ -302,6 +304,7 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
         #winners.append(winner)
 
     # side edge
+    t0 = time()
     y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 +
                        (1-dx)/y0 - dx_y, dz*(m0-m1))
     for b in y_vals:
@@ -332,7 +335,8 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
                     winner = vec
                     continue
         winners.append(winner)
-    print("side")
+    t1 = time()
+    print("side done: " + str(t1 - t0))
 
     winners2 = []
     for winner in winners:
@@ -877,43 +881,6 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     t1 = time()
     print("top done: " + str(t1 - t0))
     
-    # diagonal
-    #for a in np.arange(0 + dz, 1, dz):
-        #Mab = np.array([[a, m1*a + 1-dx/y0 + dx_y], [0, a]])
-        # Apply the transformation to all vectors at once
-        #new_vecs = Mab @ vecs
-    
-        # Extract x and y components
-        #x_comps = new_vecs[0, :]
-        #y_comps = new_vecs[1, :]
-    
-        # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
-        #valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
-    
-        #valid_x = x_comps[valid_mask]
-        #valid_y = y_comps[valid_mask]
-        #valid_vecs = vecs[:, valid_mask]  # Apply the mask to filter valid vectors
-    
-        #if valid_x.size == 0:
-            #winners.append(None)
-            #continue
-    
-        # Calculate slopes
-        #slopes = valid_y / valid_x
-    
-        # Find the minimum slope and handle continuity cases
-        #min_slope_idx = np.argmin(slopes)
-        #winner_slope = slopes[min_slope_idx]
-        #winner = valid_vecs[:, min_slope_idx]
-    
-        # Handle continuity by finding the smallest vector if slopes are close
-        #for i, slope in enumerate(slopes):
-            #if np.abs(slope - winner_slope) <= dx / 1000:
-                #if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
-                    #winner = valid_vecs[:, i]
-    
-        #winners.append(winner.reshape(2,1))
-
     # side edge
     t0 = time()
     y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 +
