@@ -171,6 +171,23 @@ def poincare_details(perm, vecs0):
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
 
+# A try-catch wrapper on poincare_details, for testing purposes.
+def try_poincare_details(sts_data, trys):
+    permutation, vectors = sts_data
+
+    details = []
+    for i in range(trys):
+        try:
+            alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
+                (permutation, vectors))
+
+            details.append((alphas, c_matrices, generators, eigenvectors))
+        except:
+            pass
+
+    return details
+
+
 def setup(alpha, c, eig, vecs0, dx, improved=True):
     x_vals = np.arange(dx, 1, dx)
     # for the poincare section with matrix c, the original saddle connections are acted on by this matrix
@@ -825,6 +842,43 @@ def read_df(n_squares, index, cusp):
 
 class ComputationsTestSuite(unittest.TestCase):
     """Basic test cases."""
+
+    def test_poincare_details_large_data(self):
+        print(f'\nTesting: poincare_details() with large data')
+        # Set up mock data
+        # this is permutations[3] from generate_permutations(7)
+        perm = Origami(
+            '(1)(2)(3)(4,5)(6,7)', '(1,2,3,4,6)(5,7)')
+        # this is corresponding vector data computed with full library
+        vecs = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "vecs7-3.npy"))
+        self.assertEqual(len(vecs), 907654)
+
+        # Run test
+        t0 = time.time()
+        details_1 = try_poincare_details((perm, vecs), 3)
+        t1 = time.time()
+        print(f'  runtime: {t1-t0}')
+        # print(details_1)
+
+    def test_poincare_details_small_data(self):
+        print(f'\nTesting: poincare_details() with small data')
+        # Set up mock data
+        # this is permutations[4] from generate_permutations(7)
+        perm = Origami(
+            '(1)(2)(3)(4,5,6,7)', '(1,2,3,4)(5)(6)(7)')
+
+        vecs = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "test_data_4.npy"))
+        self.assertEqual(len(vecs), 1912)
+
+        # Run test
+        t0 = time.time()
+        details_1 = try_poincare_details((perm, vecs), 1)
+        t1 = time.time()
+        print(f'  runtime: {t1-t0}')
+        # print(details_1)
+        # output = compute_on_cusp(details, vecs)
 
     def test_compute_winning_vecs_on_edges(self):
         # this is permutations[3] from generate_permutations(7)
