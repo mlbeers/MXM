@@ -156,12 +156,6 @@ def poincare_details(perm, vecs0, generators):
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
 def poincare_details1(perm, vecs0, generators):
-    #find the generators of each cusp of the STS
-    generators = []
-    a = perm.veech_group().cusps()
-    for item in a:
-        m = perm.veech_group().cusp_data(item)[0]
-        generators.append(m.matrix())
     #find the eigenvectors for each generator and make sure they are 1
     eigs = []
     for matrix in generators:
