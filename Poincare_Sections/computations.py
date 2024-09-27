@@ -3,7 +3,8 @@ from surface_dynamics.all import OrigamiDatabase, Origami
 from sage.all import SymmetricGroup
 from flatsurf import translation_surfaces
 import numpy as np
-from .Poincare import poincare_details, poincare_details, compute_winning_vecs_on_edges, setup, compute_winners_on_entire_section
+# , compute_winning_vecs_on_edges, compute_winners_on_entire_section
+from .Library import poincare_details, poincare_details, setup
 from .utils import load_arrays_from_file  # testing
 import time  # testing
 from multiprocessing import Pool
@@ -55,30 +56,6 @@ def generate_permutations(n, **kwargs):
             for permutation in row.teichmueller_curve():
                 obstructed.append(permutation)
     return obstructed
-
-
-# generate vectors for saddle connections on Square Tiled
-# Surfaces (STS)
-# - perm: a permutation defining a STS
-# - length: TODO: what is this parameter?
-
-def generate_vectors(permutation, length=200):
-    h, v = str(permutation).split("\n")
-    S = SymmetricGroup(len(h))
-    T = translation_surfaces.origami(S(h), S(v))
-    # T = T.erase_marked_points() # only works if pyflatsurf is installed
-    saddle_connections = T.saddle_connections(length)
-
-    vectors = []
-    for sc in saddle_connections:
-        vec = sc.holonomy().n()
-        # direction = sc.direction  # TODO: what's this for?
-        if vec not in vectors:
-            if (vec[0] >= -length/20 and vec[0] <= length/20) and (vec[1] >= -length/20 and vec[1] <= length/20):
-                vectors.append(vec)
-
-    vectors = [np.array([[v[0]], [v[1]]]) for v in vectors]
-    return vectors
 
 
 def generate_poincare_section_details(sts_data, trys):
@@ -143,24 +120,6 @@ class ComputationsTestSuite(unittest.TestCase):
         self.assertEqual(len(permutations), 352)
 
     # TODO: Not all permutuations work?
-
-    def test_generating_vectors_small(self):
-        print(f'\nTesting: generate_vectors() with small data')
-        permutations = generate_permutations(7)
-        t0 = time.time()
-        vectors = generate_vectors(permutations[4], 200)
-        t1 = time.time()
-        self.assertEqual(len(vectors), 256)  # TODO: why is this 256?
-        print(f'  runtime: {t1-t0}')
-
-    def test_generating_vectors_medium(self):
-        print(f'\nTesting: generate_vectors() with medium data')
-        permutations = generate_permutations(7)
-        t0 = time.time()
-        vectors = generate_vectors(permutations[4], 1000)
-        t1 = time.time()
-        # self.assertEqual(len(vectors), 256)  # TODO: why is this 256?
-        print(f'  runtime: {t1-t0}')
 
     def test_poincare_details_large_data(self):
         print(f'\nTesting: poincare_details() with large data')
