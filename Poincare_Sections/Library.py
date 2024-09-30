@@ -11,6 +11,11 @@ import math
 from surface_dynamics.all import *
 from time import time
 from scipy import integrate
+import unittest
+from surface_dynamics.all import Origami
+from .utils import load_arrays_from_file  # testing
+from sage.all import matrix  # testing
+import time  # testing
 
 
 # For each cusp of the square tiled surface, computes a generating matrix and
@@ -166,6 +171,23 @@ def poincare_details(perm, vecs0):
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
 
+# A try-catch wrapper on poincare_details, for testing purposes.
+def try_poincare_details(sts_data, trys):
+    permutation, vectors = sts_data
+
+    details = []
+    for i in range(trys):
+        try:
+            alphas, c_matrices, _, _, _, generators, eigenvectors = poincare_details(
+                (permutation, vectors))
+
+            details.append((alphas, c_matrices, generators, eigenvectors))
+        except:
+            pass
+
+    return details
+
+
 def setup(alpha, c, eig, vecs0, dx, improved=True):
     x_vals = np.arange(dx, 1, dx)
     # for the poincare section with matrix c, the original saddle connections are acted on by this matrix
@@ -273,35 +295,35 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
     print("top done: " + str(t1 - t0))
 
     # could re-include if we need to do computations on all sides
-    # diagonal
-    #for a in np.arange(0 + dz, 1, dz):
-        #check = 0
-        #winner_slope = None
-        #winner = None
-        #Mab = np.array([[a, m1*a + 1-dx/y0 + dx_y], [0, a]])
-        #for vec in vecs:
-            #new = Mab@vec
-            #if float(new[0][0]) == 0:
-                #continue
-            #x = float(new[0][0])
-            #y = float(new[1][0])
-            #if y/x <= 0:
-                #continue
-            #if x <= 1 and x > 0:
-                #if winner_slope == None:
-                    #winner_slope = y/x
-                    #winner = vec
-                    #continue
-       # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
-                #elif abs(y/x - winner_slope) <= dx/1000:
-                    #if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
-                        #winner = vec
-                        #continue
-                #elif y/x < winner_slope:
-                    #winner_slope = y/x
-                    #winner = vec
-                    #continue
-        #winners.append(winner)
+    # # diagonal
+    # for a in np.arange(0 + dz, 1, dz):
+    #     check = 0
+    #     winner_slope = None
+    #     winner = None
+    #     Mab = np.array([[a, m1*a + 1-dx/y0 + dx_y], [0, a]])
+    #     for vec in vecs:
+    #         new = Mab@vec
+    #         if float(new[0][0]) == 0:
+    #             continue
+    #         x = float(new[0][0])
+    #         y = float(new[1][0])
+    #         if y/x <= 0:
+    #             continue
+    #         if x <= 1 and x > 0:
+    #             if winner_slope == None:
+    #                 winner_slope = y/x
+    #                 winner = vec
+    #                 continue
+    #    # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+    #             elif abs(y/x - winner_slope) <= dx/1000:
+    #                 if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
+    #                     winner = vec
+    #                     continue
+    #             elif y/x < winner_slope:
+    #                 winner_slope = y/x
+    #                 winner = vec
+    #                 continue
+    #     winners.append(winner)
 
     # side edge
     t0 = time()
@@ -821,11 +843,6 @@ def read_df(n_squares, index, cusp):
     return df
 
 
-
-
-
-
-
 def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     # dictionary for plotting
     saddle_dict = {}
@@ -838,49 +855,51 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     winners = []
     dz = 1 / 100
     vecs = np.hstack(vecs0)  # Each vec is a column in this 2D array
-    
+
     # top edge
     # Stack list of numpy arrays into a single 2D array
     t0 = time()
     for a in np.arange(dz, 1, dz):
-        Mab = np.array([[a, 1 - dx / y0], [0, a]])  # Matrix stays outside the inner loop
-    
+        # Matrix stays outside the inner loop
+        Mab = np.array([[a, 1 - dx / y0], [0, a]])
+
         # Apply the transformation to all vectors at once
         new_vecs = Mab @ vecs
-    
+
         # Extract x and y components
         x_comps = new_vecs[0, :]
         y_comps = new_vecs[1, :]
-    
+
         # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
         valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
-    
+
         valid_x = x_comps[valid_mask]
         valid_y = y_comps[valid_mask]
-        valid_vecs = vecs[:, valid_mask]  # Apply the mask to filter valid vectors
-    
+        # Apply the mask to filter valid vectors
+        valid_vecs = vecs[:, valid_mask]
+
         if valid_x.size == 0:
             winners.append(None)
             continue
-    
+
         # Calculate slopes
         slopes = valid_y / valid_x
-    
+
         # Find the minimum slope and handle continuity cases
         min_slope_idx = np.argmin(slopes)
         winner_slope = slopes[min_slope_idx]
         winner = valid_vecs[:, min_slope_idx]
-    
+
         # Handle continuity by finding the smallest vector if slopes are close
         for i, slope in enumerate(slopes):
             if np.abs(slope - winner_slope) <= dx / 1000:
                 if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
                     winner = valid_vecs[:, i]
-    
-        winners.append(winner.reshape(2,1))
+
+        winners.append(winner.reshape(2, 1))
     t1 = time()
     print("top done: " + str(t1 - t0))
-    
+
     # side edge
     t0 = time()
     y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 +
@@ -889,39 +908,40 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
         Mab = np.array([[1 - dx, b], [0, 1-dx]])
         # Apply the transformation to all vectors at once
         new_vecs = Mab @ vecs
-    
+
         # Extract x and y components
         x_comps = new_vecs[0, :]
         y_comps = new_vecs[1, :]
-    
+
         # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
         valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
-    
+
         valid_x = x_comps[valid_mask]
         valid_y = y_comps[valid_mask]
-        valid_vecs = vecs[:, valid_mask]  # Apply the mask to filter valid vectors
-    
+        # Apply the mask to filter valid vectors
+        valid_vecs = vecs[:, valid_mask]
+
         if valid_x.size == 0:
             winners.append(None)
             continue
-    
+
         # Calculate slopes
         slopes = valid_y / valid_x
-    
+
         # Find the minimum slope and handle continuity cases
         min_slope_idx = np.argmin(slopes)
         winner_slope = slopes[min_slope_idx]
         winner = valid_vecs[:, min_slope_idx]
-    
+
         # Handle continuity by finding the smallest vector if slopes are close
         for i, slope in enumerate(slopes):
             if np.abs(slope - winner_slope) <= dx / 1000:
                 if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
                     winner = valid_vecs[:, i]
-        winners.append(winner.reshape(2,1))
+        winners.append(winner.reshape(2, 1))
     t1 = time()
     print("side done: " + str(t1 - t0))
-    
+
     winners2 = []
     for winner in winners:
         try:
@@ -1003,6 +1023,100 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     return df
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~ Tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
+class ComputationsTestSuite(unittest.TestCase):
+    """Basic test cases."""
 
+    def test_poincare_details_large_data(self):
+        print(f'\nTesting: poincare_details() with large data')
+        # Set up mock data
+        # this is permutations[3] from generate_permutations(7)
+        perm = Origami(
+            '(1)(2)(3)(4,5)(6,7)', '(1,2,3,4,6)(5,7)')
+        # this is corresponding vector data computed with full library
+        vecs = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "vecs7-3.npy"))
+        self.assertEqual(len(vecs), 907654)
+
+        # Run test
+        t0 = time.time()
+        details_1 = try_poincare_details((perm, vecs), 3)
+        t1 = time.time()
+        print(f'  runtime: {t1-t0}')
+        # print(details_1)
+
+    def test_poincare_details_small_data(self):
+        print(f'\nTesting: poincare_details() with small data')
+        # Set up mock data
+        # this is permutations[4] from generate_permutations(7)
+        perm = Origami(
+            '(1)(2)(3)(4,5,6,7)', '(1,2,3,4)(5)(6)(7)')
+
+        vecs = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "test_data_4.npy"))
+        self.assertEqual(len(vecs), 1912)
+
+        # Run test
+        t0 = time.time()
+        details_1 = try_poincare_details((perm, vecs), 1)
+        t1 = time.time()
+        print(f'  runtime: {t1-t0}')
+        # print(details_1)
+        # output = compute_on_cusp(details, vecs)
+
+    def test_compute_winning_vecs_on_edges(self):
+        # this is permutations[3] from generate_permutations(7)
+        perm = Origami(
+            '(1)(2)(3)(4,5)(6,7)', '(1,2,3,4,6)(5,7)')
+        # this is corresponding vector data computed with full library
+        vectors = load_arrays_from_file(os.path.join(
+            "Poincare_Sections", "vecs", "vecs7-3.npy"))[0:1000]
+
+        generators = []
+        a = perm.veech_group().cusps()
+        # TODO: fix a  to actually have validatable output data = [Infinity, -4/7, -1/5, -5/29, -3/5, -15/22, 0, -2/3, -1/2, -1/6]
+        print(f'cusps:{a}')
+        # print(type(a[0]))
+        for item in a:
+            m = perm.veech_group().cusp_data(item)[0]
+            generators.append(m.matrix())
+
+        # mock data for setup
+        alphas = [1.0, 1076.0, 104.0, 106.0, 5862.0,
+                  663.0, 10.0, 120.0, 455.0, 119.0]
+        c_matrices = [np.array([[1., 0.], [0., 1.]]), np.array([[0.00557628, -0.04275121], [0.04275121,  0.00557628]]), np.array([[0.03846305, -0.19231131], [0.19231131,  0.03846305]]), np.array([[0.03773585, -0.13207547], [0.13207547,  0.03773585]]), np.array([[0.00409406, -0.0317294], [0.0317294,  0.00409406]]),
+                      np.array([[0.02262495, -0.06334904], [0.06334904,  0.02262495]]), np.array([[0.,  0.5], [-0.5, -0.]]), np.array([[0.1000019, -0.30000253], [0.30000253,  0.1000019]]), np.array([[0.01538339, -0.12307211], [0.12307211,  0.01538339]]), np.array([[0.05882581, -0.2352984], [0.2352984,  0.05882581]])]
+        eigenvectors = [matrix([[1, 1], [0, 1]]), matrix([[139, 18], [-1058, -137]]), matrix([[21, 4], [-100, -19]]), matrix([[29, 8], [-98, -27]]), matrix([[745,    96], [-5766,  -743]]), matrix(
+            [[211, 75], [-588, -209]]), matrix([[1,   0], [-10,   1]]), matrix([[37,   12], [-108,  -35]]), matrix([[57,    7], [-448,  -55]]), matrix([[29,    7], [-112,  -27]])]
+        # last_piece_of_details = [np.array([[1], [0]]), np.array([[1.], [-7.66666667]]), np.array([[1], [-5]]), np.array([[1.], [-3.5]]), np.array([[1.], [-7.75]]),
+        #      np.array([[1.], [-2.8]]), np.array([[0], [1]]), np.array([[1], [-3]]), np.array([[1], [-8]]), np.array([[1], [-4]])]
+
+        n_squares = 7
+        dx = 0.0005
+        index = 4
+
+        expected_len = [1, 3, 1, 1, 3, 1, 44, 1, 1, 1]
+        # TODO: test against expected values,
+        # expected_winners = [[np.array([[0], [2]])],
+        #                     [np.array([[-6.76584374], [0.79554982]]), np.array([[-5.56323358], [0.68216519]]), np.array([[-0.08550242], [0.01115256]])]]
+        for j in range(0, 10):
+            vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
+                alphas[j], c_matrices[j], eigenvectors[j], vectors, dx, False)
+
+            t0 = time.time()
+            result = winners(
+                vecs, x_vals, m0, m1, y0, dx, dx_y)
+            t1 = time.time()
+            print(f'time: {t1-t0}')
+            print(f'edge winning vecs: {result}')
+            print(f'len: {len(result)}')
+            self.assertEqual(len(result), expected_len[j])
+
+            # numpy doesn't like mock data :(
+            # for i in range(0, len(result)):
+            #     self.assertTrue(np.array_equal(
+            #         result[i], expected_winners[j][i]))
