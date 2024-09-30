@@ -48,29 +48,26 @@ def poincare_details(perm, vecs0):
                 raise ValueError("Eigenvalue not equal to 1")
         else:
             raise ValueError("Different eigenvalues")
-    # find the eigenvectors for each generator
+    #find the eigenvectors for each generator
+
+   # Find the eigenvectors for each generator
     eigenvecs = []
     for matrix in generators:
         vec = matrix.eigenvectors_right()[0][1][0]
-        vec = np.array([[vec[0]], [vec[1]]])
-        eigenvecs.append(vec)
-    # find the magnitude, slope, x-direction, and y-direction of each eigenvector
-    saddle_vecs = []
-    for vec in eigenvecs:
-        mag_vec = ((vec[0]**2 + vec[1]**2)**0.5)[0]
-        if vec[0] == 0:
-            slope_vec = float("inf")
-        else:
-            slope_vec = (vec[1]/vec[0])[0]
+        eigenvecs.append(np.array([[vec[0]], [vec[1]]]))  # Store eigenvectors directly
 
-        if vec[0] >= 0:
-            x_sign_vec = 1
-        else:
-            x_sign_vec = -1
-        if vec[1] >= 0:
-            y_sign_vec = 1
-        else:
-            y_sign_vec = -1
+    # Convert eigenvecs to a NumPy array for vectorized operations
+    eigenvecs = np.array(eigenvecs)
+
+    # Preallocate saddle_vecs
+    saddle_vecs = np.empty_like(eigenvecs)
+
+    # Find the magnitude, slope, x-direction, and y-direction of each eigenvector
+    for i, vec in enumerate(eigenvecs):
+        mag_vec = np.linalg.norm(vec)  # Use numpy's linalg.norm to calc vector's norm
+        slope_vec = float('inf') if vec[0] == 0 else vec[1] / vec[0]
+        x_sign_vec = np.sign(vec[0])
+        y_sign_vec = np.sign(vec[1])
 
         saddle_vec = None
         check = 0
@@ -83,30 +80,18 @@ def poincare_details(perm, vecs0):
             else:
                 slope_saddle = (saddle[1]/saddle[0])[0]
 
-            if saddle[0] >= 0:
-                x_sign_saddle = 1
-            else:
-                x_sign_saddle = -1
-            if saddle[1] >= 0:
-                y_sign_saddle = 1
-            else:
-                y_sign_saddle = -1
+            # Check if the slope and direction match
+            if (slope_vec == slope_saddle and x_sign_vec == x_sign_saddle and y_sign_vec == y_sign_saddle):
+                # Update the smallest saddle connection
+                if mag_saddle < min_mag:
+                    min_mag = mag_saddle
+                    saddle_vec = saddle
 
-            # find the smallest saddle connection that is in the same direction and has the same slope as the given eigenvector and add it to a list
-            if slope_vec == slope_saddle:
-                if x_sign_vec == x_sign_saddle:
-                    if y_sign_vec == y_sign_saddle:
-                        if check == 0:
-                            saddle_vec = saddle
-                            mag = mag_saddle
-                            check += 1
-                        elif mag_saddle < mag:
-                            saddle_vec = saddle
-                            mag = mag_saddle
-        if check == 0:
+        if saddle_vec is None:
             raise ValueError(f"No saddle vec for eigenvector {vec}")
-        saddle_vecs.append(saddle_vec)
-    # find the counter-clockwise angle from the x-axis to the eigenvectors
+        saddle_vecs[i] = saddle_vec  # Store saddle_vec directly
+
+    #find the counter-clockwise angle from the x-axis to the eigenvectors
     thetas = []
     for i in range(len(saddle_vecs)):
         mag = (saddle_vecs[i][0]**2 + saddle_vecs[i][1]**2)**0.5
