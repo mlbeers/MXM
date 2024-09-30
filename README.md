@@ -81,13 +81,16 @@ Use tmux to create new windows to run code in. You can start the code in these w
 
 In your window run the following:
 
+```
 cd MXM/Poincare_Sections
 source /usr/local/mambaforge/sf-env
+```
 
-then either:
-sage script_vector n_squares index increment
-sage scripy n_squares index
+then run either  
+- `sage script_vector n_squares index increment`
+- `sage script n_squares index`
 
+where
 - n_squares is the number of squares in your STS
 - index is the index of the shape you are looking at in the list of permutations
 - increment is how you want to increment your index as it loops through all shapes, fine to keep as 1
