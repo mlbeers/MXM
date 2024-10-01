@@ -174,9 +174,8 @@ def poincare_details(perm, vecs0, generators):
         alphas.append(round(M[0][1], 5))
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
+
 # A copy of poincare_details for optimization. All optimization changes should go here!
-
-
 def poincare_details1(perm, vecs0, generators):
     # find the eigenvectors for each generator and make sure they are 1
     eigs = []
