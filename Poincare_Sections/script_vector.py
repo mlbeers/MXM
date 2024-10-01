@@ -34,5 +34,6 @@ for i in range(start_index, len(permutations), increment):
             v += "(" + str(num) + ")"
     # generate saddle connections on surface and save file
     name = "vecs" + str(n_squares) + "-" + str(i) + ".npy"
+
     vecs0 = generate_vectors(h, v, 2000)
     save_arrays_to_file(os.path.join("vecs", name), vecs0)

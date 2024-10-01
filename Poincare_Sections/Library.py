@@ -2,11 +2,11 @@ import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
 from flatsurf import *
-import os
 import pwlf
 import sympy as sym
 from sympy import Symbol
 from sympy import solve, lambdify
+import os
 import math
 from surface_dynamics.all import *
 from time import time
@@ -16,6 +16,16 @@ from surface_dynamics.all import Origami
 from .utils import load_arrays_from_file  # testing
 from sage.all import matrix  # testing
 import time  # testing
+
+
+def generators(perm, vecs0):
+    # find the generators of each cusp of the STS
+    generators = []
+    a = perm.veech_group().cusps()
+    for item in a:
+        m = perm.veech_group().cusp_data(item)[0]
+        generators.append(m.matrix())
+    return generators
 
 
 # For each cusp of the square tiled surface, computes a generating matrix and
@@ -33,13 +43,7 @@ import time  # testing
 #   Ms: C*generator*C^inv
 #   generators:
 #   eigenvecs: eigenvectors
-def poincare_details(perm, vecs0):
-    # find the generators of each cusp of the STS
-    generators = []
-    a = perm.veech_group().cusps()
-    for item in a:
-        m = perm.veech_group().cusp_data(item)[0]
-        generators.append(m.matrix())
+def poincare_details(perm, vecs0, generators):
     # find the eigenvectors for each generator and make sure they are 1
     eigs = []
     for matrix in generators:
@@ -171,7 +175,121 @@ def poincare_details(perm, vecs0):
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
 
+# A copy of poincare_details for optimization. All optimization changes should go here!
+def poincare_details1(perm, vecs0, generators):
+    # find the eigenvectors for each generator and make sure they are 1
+    eigs = []
+    for matrix in generators:
+        eig1, eig2 = matrix.eigenvalues()
+        if eig1 == eig2:
+            if eig1 == 1:
+                eigs.append(eig1)
+            else:
+                raise ValueError("Eigenvalue not equal to 1")
+        else:
+            raise ValueError("Different eigenvalues")
+    # find the eigenvectors for each generator
+    eigenvecs = []
+    for matrix in generators:
+        vec = matrix.eigenvectors_right()[0][1][0]
+        vec = np.array([[vec[0]], [vec[1]]])
+        eigenvecs.append(vec)
+    # find the magnitude, slope, x-direction, and y-direction of each eigenvector
+    saddle_vecs = []
+    for vec in eigenvecs:
+        # Update: Try to optimize the original 44-93 lines
+        # use numpy's linalg.norm to calc vector's norm
+        mag_vec = np.linalg.norm(vec)
+        slope_vec = float('inf') if vec[0] == 0 else vec[1] / vec[0]
+        x_sign_vec = np.sign(vec[0])
+        y_sign_vec = np.sign(vec[1])
+
+        saddle_vec = None
+        min_mag = float('inf')
+
+        for saddle in vecs0:
+            mag_saddle = np.linalg.norm(saddle)
+            slope_saddle = float(
+                'inf') if saddle[0] == 0 else saddle[1] / saddle[0]
+            x_sign_saddle = np.sign(saddle[0])
+            y_sign_saddle = np.sign(saddle[1])
+
+            # Check if the slope and direction match
+            if (slope_vec == slope_saddle and x_sign_vec == x_sign_saddle and y_sign_vec == y_sign_saddle):
+
+                # Update the smallest saddle connection
+                if mag_saddle < min_mag:
+                    min_mag = mag_saddle
+                    saddle_vec = saddle
+
+        if saddle_vec is None:
+            raise ValueError(f"No saddle vec for eigenvector {vec}")
+        saddle_vecs.append(saddle_vec)
+
+    # find the counter-clockwise angle from the x-axis to the eigenvectors
+    thetas = []
+    for i in range(len(saddle_vecs)):
+        mag = (saddle_vecs[i][0]**2 + saddle_vecs[i][1]**2)**0.5
+        theta = np.arccos(np.dot(np.array([[1, 0]]), saddle_vecs[i])/mag)
+        if saddle_vecs[i][1] < 0:
+            theta = 2 * math.pi - theta
+        thetas.append(theta)
+    # find the rotation matrix that takes the vector (1,0) to the vector in the direction of each eigenvector
+    rots = []
+    for theta in thetas:
+        rot = np.array([[round(np.cos(theta)[0][0], 5), round(-np.sin(theta)[0][0], 5)],
+                       [round(np.sin(theta)[0][0], 5), round(np.cos(theta)[0][0], 5)]])
+        rots.append(rot)
+
+    # find a constant value such that mult*rot@(1,0) = saddle_vec while accounting for rounding errors and zero matrix inputs
+    mults = []
+    for i in range(len(rots)):
+        matrix = rots[i]@np.array([[1], [0]])
+        if matrix[0][0] != 0:
+            mult1 = saddle_vecs[i][0][0]/matrix[0][0]
+        else:
+            mult1 = 0
+        if matrix[1][0] != 0:
+            mult2 = saddle_vecs[i][1][0]/matrix[1][0]
+        else:
+            mult2 = 0
+        if mult1 != 0 and mult2 == 0:
+            mult = mult1
+        elif mult1 == 0 and mult2 != 0:
+            mult = mult2
+        elif mult1 == 0 and mult2 == 0:
+            raise ValueError('both mults equal zero')
+        elif abs(mult1 - mult2) <= 0.001:
+            mult = mult1
+        elif abs(mult1 - mult2) >= 0.001:
+            raise ValueError(f'mults are different {mult1}, {mult2}')
+        mults.append(mult)
+        mult1 = None
+        mult2 = None
+        mult = None
+    # find c_inv and c
+    Cs = []
+    C_invs = []
+    for i in range(len(mults)):
+        c_inv = mults[i]*rots[i]
+        c = np.linalg.inv(c_inv)
+        Cs.append(c)
+        C_invs.append(c_inv)
+    # alpha is the top right value of the matrix M = c @ generator @ c_inv. M must have 1s on the diagonal and 0 in the bottom left
+    alphas = []
+    Ms = []
+    for i in range(len(generators)):
+        M = Cs[i]@generators[i]@C_invs[i]
+        Ms.append(M)
+        if M[1][0] >= 1/1000000 and M[1][0] <= -1/1000000:
+            raise ValueError(
+                f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}")
+        alphas.append(round(M[0][1], 5))
+    return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
+
 # A try-catch wrapper on poincare_details, for testing purposes.
+
+
 def try_poincare_details(sts_data, trys):
     permutation, vectors = sts_data
 
@@ -234,7 +352,6 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
     return vecs, x_vals, m0, m1, x0, y0, dx_y, z
 
 
-# winners computes the winning vector for all points in a poincare section.
 # It first computes winning vectors from all possible vectors on points on the
 # bottom and vertical edge of the poincare section. Then it computes winners
 # for all points on the poincare section from the set of winners from the sides.
