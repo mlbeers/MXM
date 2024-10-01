@@ -2,9 +2,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
 from flatsurf import *
-import numpy as np
-from matplotlib import pyplot as plt
-import os
 import pwlf
 import sympy as sym
 from sympy import Symbol
@@ -20,15 +17,32 @@ from .utils import load_arrays_from_file  # testing
 from sage.all import matrix  # testing
 import time  # testing
 
+
 def generators(perm, vecs0):
-    #find the generators of each cusp of the STS
+    # find the generators of each cusp of the STS
     generators = []
     a = perm.veech_group().cusps()
     for item in a:
         m = perm.veech_group().cusp_data(item)[0]
         generators.append(m.matrix())
     return generators
-    
+
+
+# For each cusp of the square tiled surface, computes a generating matrix and
+# its eigenvectors, then finds the shortest saddle connection in the direction # of the eigenvector by producing a big list of saddle connections and then checking all of them.
+#
+# inputs:
+#   perm: a permutation that defines a square tiled surface
+#   vecs0: list of saddle connections on this STS to check (this is large)
+#
+# outputs:
+#   alphas:
+#   Cs:
+#   C_invs:
+#   eigs: eigenvalues
+#   Ms: C*generator*C^inv
+#   generators:
+#   eigenvecs: eigenvectors
 def poincare_details(perm, vecs0, generators):
     # find the eigenvectors for each generator and make sure they are 1
     eigs = []
@@ -160,8 +174,11 @@ def poincare_details(perm, vecs0, generators):
         alphas.append(round(M[0][1], 5))
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
+# A copy of poincare_details for optimization. All optimization changes should go here!
+
+
 def poincare_details1(perm, vecs0, generators):
-    #find the eigenvectors for each generator and make sure they are 1
+    # find the eigenvectors for each generator and make sure they are 1
     eigs = []
     for matrix in generators:
         eig1, eig2 = matrix.eigenvalues()
@@ -172,17 +189,18 @@ def poincare_details1(perm, vecs0, generators):
                 raise ValueError("Eigenvalue not equal to 1")
         else:
             raise ValueError("Different eigenvalues")
-    #find the eigenvectors for each generator
+    # find the eigenvectors for each generator
     eigenvecs = []
     for matrix in generators:
         vec = matrix.eigenvectors_right()[0][1][0]
-        vec = np.array([[vec[0]],[vec[1]]])
+        vec = np.array([[vec[0]], [vec[1]]])
         eigenvecs.append(vec)
-    #find the magnitude, slope, x-direction, and y-direction of each eigenvector
+    # find the magnitude, slope, x-direction, and y-direction of each eigenvector
     saddle_vecs = []
     for vec in eigenvecs:
         # Update: Try to optimize the original 44-93 lines
-        mag_vec = np.linalg.norm(vec) #  use numpy's linalg.norm to calc vector's norm
+        # use numpy's linalg.norm to calc vector's norm
+        mag_vec = np.linalg.norm(vec)
         slope_vec = float('inf') if vec[0] == 0 else vec[1] / vec[0]
         x_sign_vec = np.sign(vec[0])
         y_sign_vec = np.sign(vec[1])
@@ -192,7 +210,8 @@ def poincare_details1(perm, vecs0, generators):
 
         for saddle in vecs0:
             mag_saddle = np.linalg.norm(saddle)
-            slope_saddle = float('inf') if saddle[0] == 0 else saddle[1] / saddle[0]
+            slope_saddle = float(
+                'inf') if saddle[0] == 0 else saddle[1] / saddle[0]
             x_sign_saddle = np.sign(saddle[0])
             y_sign_saddle = np.sign(saddle[1])
 
@@ -208,24 +227,25 @@ def poincare_details1(perm, vecs0, generators):
             raise ValueError(f"No saddle vec for eigenvector {vec}")
         saddle_vecs.append(saddle_vec)
 
-    #find the counter-clockwise angle from the x-axis to the eigenvectors
+    # find the counter-clockwise angle from the x-axis to the eigenvectors
     thetas = []
     for i in range(len(saddle_vecs)):
         mag = (saddle_vecs[i][0]**2 + saddle_vecs[i][1]**2)**0.5
-        theta = np.arccos(np.dot(np.array([[1,0]]),saddle_vecs[i])/mag)
+        theta = np.arccos(np.dot(np.array([[1, 0]]), saddle_vecs[i])/mag)
         if saddle_vecs[i][1] < 0:
             theta = 2 * math.pi - theta
         thetas.append(theta)
-    #find the rotation matrix that takes the vector (1,0) to the vector in the direction of each eigenvector
+    # find the rotation matrix that takes the vector (1,0) to the vector in the direction of each eigenvector
     rots = []
     for theta in thetas:
-        rot = np.array([[round(np.cos(theta)[0][0],5),round(-np.sin(theta)[0][0],5)],[round(np.sin(theta)[0][0],5), round(np.cos(theta)[0][0],5)]])
+        rot = np.array([[round(np.cos(theta)[0][0], 5), round(-np.sin(theta)[0][0], 5)],
+                       [round(np.sin(theta)[0][0], 5), round(np.cos(theta)[0][0], 5)]])
         rots.append(rot)
 
-    #find a constant value such that mult*rot@(1,0) = saddle_vec while accounting for rounding errors and zero matrix inputs
+    # find a constant value such that mult*rot@(1,0) = saddle_vec while accounting for rounding errors and zero matrix inputs
     mults = []
     for i in range(len(rots)):
-        matrix = rots[i]@np.array([[1],[0]])
+        matrix = rots[i]@np.array([[1], [0]])
         if matrix[0][0] != 0:
             mult1 = saddle_vecs[i][0][0]/matrix[0][0]
         else:
@@ -248,7 +268,7 @@ def poincare_details1(perm, vecs0, generators):
         mult1 = None
         mult2 = None
         mult = None
-    #find c_inv and c
+    # find c_inv and c
     Cs = []
     C_invs = []
     for i in range(len(mults)):
@@ -256,18 +276,21 @@ def poincare_details1(perm, vecs0, generators):
         c = np.linalg.inv(c_inv)
         Cs.append(c)
         C_invs.append(c_inv)
-    #alpha is the top right value of the matrix M = c @ generator @ c_inv. M must have 1s on the diagonal and 0 in the bottom left
+    # alpha is the top right value of the matrix M = c @ generator @ c_inv. M must have 1s on the diagonal and 0 in the bottom left
     alphas = []
     Ms = []
     for i in range(len(generators)):
         M = Cs[i]@generators[i]@C_invs[i]
         Ms.append(M)
         if M[1][0] >= 1/1000000 and M[1][0] <= -1/1000000:
-            raise ValueError(f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}")
+            raise ValueError(
+                f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}")
         alphas.append(round(M[0][1], 5))
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
-  
+
 # A try-catch wrapper on poincare_details, for testing purposes.
+
+
 def try_poincare_details(sts_data, trys):
     permutation, vectors = sts_data
 
@@ -286,14 +309,14 @@ def try_poincare_details(sts_data, trys):
 
 def setup(alpha, c, eig, vecs0, dx, improved=True):
     x_vals = np.arange(dx, 1, dx)
-    #for the poincare section with matrix c, the original saddle connections are acted on by this matrix
+    # for the poincare section with matrix c, the original saddle connections are acted on by this matrix
     vecs1 = c@vecs0
-    #find vectors such that -10 <= x <= 10 and 0 < y <= 10
+    # find vectors such that -10 <= x <= 10 and 0 < y <= 10
     vecs = []
     for item in vecs1:
         vecs.append(item)
 
-    #section vector is vector with smallest y-component with y > 0 and corresponding x-component with 0 <= x <= 1 with smallest slope. It defines the y-intercept of the section and partially defines slopes of the lines of the section
+    # section vector is vector with smallest y-component with y > 0 and corresponding x-component with 0 <= x <= 1 with smallest slope. It defines the y-intercept of the section and partially defines slopes of the lines of the section
     sec_vec = np.array([[None], [None]])
     for i in range(len(vecs)):
         if (vecs[i][0][0] <= 0 or vecs[i][1][0] <= 0):
@@ -313,7 +336,7 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
     y0 = sec_vec[1][0]
     z = y0
 
-    #slopes of top and bottom lines of section
+    # slopes of top and bottom lines of section
     if improved == True:
         m0 = -x0/y0
         m1 = -(x0/y0 + alpha)
@@ -323,15 +346,29 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
         x0 = 0
         y0 = 1
 
-    #defines vertical step when finding winners
+    # defines vertical step when finding winners
     global dx_y
     dx_y = (m0 - m1) * dx
-    
+
     return vecs, x_vals, m0, m1, x0, y0, dx_y, z
 
 
+# It first computes winning vectors from all possible vectors on points on the
+# bottom and vertical edge of the poincare section. Then it computes winners
+# for all points on the poincare section from the set of winners from the sides.
+#
+# inputs:
+#   vecs: array of vectors, after being multiplied by C matrix
+#   x_vals: array of x-values in the poincare section, all between [0,1]
+#   m0: slope of the top line of the poincare section
+#   m1: slope of the bottom line of the poincare section
+#   y0: 1/y0 is the y-coordinate of the top left corner point of the section
+#   dx: step size for separation of points to sample in the section
+#   dx_y: step size for separation of points to sample in the section
+#
+# output: TODO
 def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
-    #dictionary for plotting
+    # dictionary for plotting
     saddle_dict = {}
     saddle_dict["x"] = []
     saddle_dict["y"] = []
@@ -362,7 +399,7 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
                     winner_slope = y/x
                     winner = vec
                     continue
-        #if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+        # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
                 elif abs(y/x - winner_slope) <= dx/1000:
                     if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
                         winner = vec
@@ -428,7 +465,7 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
                     winner_slope = y/x
                     winner = vec
                     continue
-        #if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+        # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
                 elif abs(y/x - winner_slope) <= dx/1000:
                     if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
                         winner = vec
@@ -454,12 +491,12 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
 
     global label_dict
     label_dict = {}
-    
-    #dictionary for vector labels
+
+    # dictionary for vector labels
     for i in range(len(possible_vecs)):
         label_dict[i] = possible_vecs[i]
 
-    #for each vector, there is a time function defined as f(a,b) where a,b are points in the poincare section
+    # for each vector, there is a time function defined as f(a,b) where a,b are points in the poincare section
     global t_dict
     t_dict = {}
 
@@ -468,11 +505,11 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
     horo = np.array([[1, 0], [-t, 1]])
 
     for i in range(len(possible_vecs)):
-        #apply Mab matrix, perform horocycle flow and find time t to horizontal
+        # apply Mab matrix, perform horocycle flow and find time t to horizontal
         a = horo@(Mab@possible_vecs[i])
-        t_dict[i] = lambdify([x,y], solve(a[1][0], t)[0])
-    
-    #for each point (a,b) in the poincare section, apply the Mab matrix to each vector and look for "winners". Winners have smallest possible slope that is greater than zero and 0 < x-component <= 1
+        t_dict[i] = lambdify([x, y], solve(a[1][0], t)[0])
+
+    # for each point (a,b) in the poincare section, apply the Mab matrix to each vector and look for "winners". Winners have smallest possible slope that is greater than zero and 0 < x-component <= 1
     for a in x_vals:
         y_vals = np.arange(m1*a + 1/y0 + dx_y, m0*a + 1/y0 - dx_y, dx_y)
         for b in y_vals:
@@ -493,7 +530,7 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
                         winner_slope = y/x
                         winner = vec
                         continue
-            #if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+            # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
                     elif abs(y/x - winner_slope) <= dx/1000:
                         if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
                             winner = vec
@@ -510,10 +547,10 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
                 if np.array_equal(winner, possible_vecs[i]):
                     check += 1
                     saddle_dict["lab"].append(i)
-                    saddle_dict["time"].append(t_dict[i](a,b))
+                    saddle_dict["time"].append(t_dict[i](a, b))
                     if saddle_dict["time"][-1] < 0:
                         saddle_dict["time"][-1] = 1000
-            #if there is no winner, at (a,b), add a label so the df and plot can still be made. These section will later be made blank for trouble-shoooting
+            # if there is no winner, at (a,b), add a label so the df and plot can still be made. These section will later be made blank for trouble-shoooting
             if check == 0:
                 saddle_dict["lab"].append(len(vecs))
                 saddle_dict["time"].append(1000)
@@ -521,29 +558,34 @@ def winners(vecs, x_vals, m0, m1, y0, dx, dx_y):
     df = pd.DataFrame.from_dict(saddle_dict)
     return df
 
-def plot(df, vecs, c, j, n_squares, index, test = False):
+
+def plot(df, vecs, c, j, n_squares, index, test=False):
     fig, ax = plt.subplots(figsize=(10, 10))
-    #plot winners
-    ax.scatter(df[df["lab"] != len(vecs)]["x"], df[df["lab"] != len(vecs)]["y"], c = df[df["lab"] != len(vecs)]["lab"], s = 0.1)
-    #for points with no winner, make white
-    ax.scatter(df[df["lab"] == len(vecs)]["x"], df[df["lab"] == len(vecs)]["y"], c = "white", alpha = 0.5, s = 0.1)
+    # plot winners
+    ax.scatter(df[df["lab"] != len(vecs)]["x"], df[df["lab"] != len(
+        vecs)]["y"], c=df[df["lab"] != len(vecs)]["lab"], s=0.1)
+    # for points with no winner, make white
+    ax.scatter(df[df["lab"] == len(vecs)]["x"], df[df["lab"]
+               == len(vecs)]["y"], c="white", alpha=0.5, s=0.1)
     ax.set_aspect('auto', adjustable='box')
 
-    #plot outline of poincare section
+    # plot outline of poincare section
     min_x = min(df["x"])
     y1 = max(df[df["x"] == min_x]["y"])
     y2 = min(df[df["x"] == min_x]["y"])
     max_x = max(df["x"])
     y3 = max(df[df["x"] == max_x]["y"])
     y4 = min(df[df["x"] == max_x]["y"])
-    ax.plot([min_x, max_x, max_x, min_x, min_x], [y1, y3, y4, y2, y1], c = "black")
-    
-    plt.title(str(c) + "\n", loc = "left", fontsize = 25)
+    ax.plot([min_x, max_x, max_x, min_x, min_x],
+            [y1, y3, y4, y2, y1], c="black")
+
+    plt.title(str(c) + "\n", loc="left", fontsize=25)
     if test == False:
-        plt.savefig(os.path.join("results", f"{n_squares} - {index}", "section - " + str(j)))
-    #for troubleshooting
+        plt.savefig(os.path.join(
+            "results", f"{n_squares} - {index}", "section - " + str(j)))
+    # for troubleshooting
     if test == True:
-        #display vectors on the right edge of the section from top to bottom
+        # display vectors on the right edge of the section from top to bottom
         labs = list(df[df["x"] == max(df["x"])]["lab"].unique())
         labs.reverse()
         output = []
@@ -556,22 +598,23 @@ def plot(df, vecs, c, j, n_squares, index, test = False):
         raise ValueError("Poincare section has empty portion")
     plt.show()
     plt.close(fig)
-    
+
+
 class Section:
     def __init__(self, x, top, bottom):
         self.vec = None
         self.pwlf_top = pwlf.PiecewiseLinFit(x, top)
         self.pwlf_bottom = pwlf.PiecewiseLinFit(x, bottom)
-        #equations
+        # equations
         self.top = []
         self.bottom = []
-        #lambdified equations
+        # lambdified equations
         self.f_top = []
         self.f_bottom = []
-        #points
+        # points
         self.points_top = None
         self.points_bottom = None
-        
+
     def t(self):
         x, y, t = sym.symbols('x y t')
         Mab = np.array([[x, y], [0, 1/x]])
@@ -579,13 +622,14 @@ class Section:
         a = horo@(Mab@self.vec)
         return solve(a[1][0], t)[0]
 
-    #find the time equation in terms of y
+    # find the time equation in terms of y
     def y(self):
         x, y, t = sym.symbols('x y t')
         Mab = np.array([[x, y], [0, 1/x]])
         horo = np.array([[1, 0], [-t, 1]])
         a = horo@(Mab@self.vec)
         return solve(a[1][0], y)[0]
+
 
 def sec_setup(df, dx_y):
     sec_list = []
@@ -599,10 +643,10 @@ def sec_setup(df, dx_y):
         y_tops = []
         y_bottoms = []
         for x in xs:
-            #for a given "x" find the max and minimum y-values
+            # for a given "x" find the max and minimum y-values
             y_top = max(df1[df1["x"] == x]["y"])
             y_bottom = min(df1[df1["x"] == x]["y"])
-            #ensures the section is convex, not concave
+            # ensures the section is convex, not concave
             if len(df1[df1["x"] == x]["y"]) < (y_top - y_bottom)/dx_y:
                 print("len: " + str(len(df1[df1["x"] == x]["y"])))
                 print("ytop: " + str(y_top))
@@ -610,7 +654,8 @@ def sec_setup(df, dx_y):
                 print("dx_y: " + str(dx_y))
                 print(x)
                 print(df1[df1["x"] == x]["y"])
-                raise ValueError("Section has more than 2 points for a given 'x'")
+                raise ValueError(
+                    "Section has more than 2 points for a given 'x'")
             y_tops.append(y_top)
             y_bottoms.append(y_bottom)
         y_tops = np.array(y_tops, dtype='float32')
@@ -622,6 +667,7 @@ def sec_setup(df, dx_y):
         sec_list.append(sec_dict)
     return sec_list
 
+
 def sec_comp(sec_list, dx):
     secs = []
     for i in range(len(sec_list)):
@@ -631,8 +677,8 @@ def sec_comp(sec_list, dx):
         sec = Section(x, top, bottom)
         sec.vec = label_dict[labs[i]]
 
-        #use piece-wise linear regression to find the equations of the lines for subsection
-        #top
+        # use piece-wise linear regression to find the equations of the lines for subsection
+        # top
         num = 1
         check = True
         while check:
@@ -646,7 +692,7 @@ def sec_comp(sec_list, dx):
                 check = False
             num += 1
 
-        #bottom
+        # bottom
         num = 1
         check = True
         while check:
@@ -662,14 +708,14 @@ def sec_comp(sec_list, dx):
 
         x = Symbol('x')
 
-        #top
+        # top
         for i in range(sec.pwlf_top.n_segments):
             eq = get_symbolic_eqn(sec.pwlf_top, i + 1)
             sec.top.append(eq)
             sec.f_top.append(lambdify([x], eq))
             sec.points_top = breaks1
 
-        #bottom
+        # bottom
         for i in range(sec.pwlf_bottom.n_segments):
             eq = get_symbolic_eqn(sec.pwlf_bottom, i + 1)
             sec.bottom.append(eq)
@@ -677,6 +723,7 @@ def sec_comp(sec_list, dx):
             sec.points_bottom = breaks2
         secs.append(sec)
     return secs
+
 
 def time_comp(secs):
     times = []
@@ -694,10 +741,11 @@ def time_comp(secs):
                 add = False
         if add:
             times2.append(time)
-            
+
     return times2
 
-def pdf(vals, prob_times, dx, n_squares, index, j, test = False):
+
+def pdf(vals, prob_times, dx, n_squares, index, j, test=False):
     times = list(np.arange(0, 10, 20*dx))
     a = list(sorted(vals))
     factor = 1/min(a)*min(prob_times)
@@ -705,7 +753,7 @@ def pdf(vals, prob_times, dx, n_squares, index, j, test = False):
     for item in a:
         b.append(item*factor)
     cdf = [0]
-    #compute cdf
+    # compute cdf
     for t in times:
         num = cdf[-1]
         for i in range(num, len(b)):
@@ -715,37 +763,39 @@ def pdf(vals, prob_times, dx, n_squares, index, j, test = False):
             else:
                 cdf.append(num)
                 break
-    #compute pdf
+    # compute pdf
     pdf = []
     for i in range(len(cdf) - 1):
         delta = (cdf[i+1] - cdf[i])/dx
         pdf.append(delta)
     fig, ax = plt.subplots(figsize=(10, 10))
-    ax.scatter(times, pdf, s = 0.5)
-        
-    #plot discontinuities
+    ax.scatter(times, pdf, s=0.5)
+
+    # plot discontinuities
     probs2 = []
     for item in prob_times:
         probs2.append(item)
-        #probs2.append(factor*item)
+        # probs2.append(factor*item)
     for t in probs2:
         if t > max(times):
             continue
         for i in range(len(times)):
             if t < times[i]:
-                ax.scatter(t, pdf[i-1], s = 20, color = "red")
+                ax.scatter(t, pdf[i-1], s=20, color="red")
                 break
     if test == True:
         print(prob_times)
     plt.show()
-    plt.savefig(os.path.join("results", f"{n_squares} - {index}", f"pdf - {j}"))
+    plt.savefig(os.path.join(
+        "results", f"{n_squares} - {index}", f"pdf - {j}"))
     plt.close(fig)
     return pdf
 
 
-#Code from pwlf
+# Code from pwlf
 
 x = Symbol('x')
+
 
 def get_symbolic_eqn(pwlf_, segment_number):
     if pwlf_.degree < 1:
@@ -762,15 +812,18 @@ def get_symbolic_eqn(pwlf_, segment_number):
     if pwlf_.degree > 1:
         for k in range(2, pwlf_.degree + 1):
             for line in range(segment_number):
-                beta_index = pwlf_.n_segments*(k-1) + line + 1 
-                my_eqn += (pwlf_.beta[beta_index])*(x-pwlf_.fit_breaks[line])**k
+                beta_index = pwlf_.n_segments*(k-1) + line + 1
+                my_eqn += (pwlf_.beta[beta_index]) * \
+                    (x-pwlf_.fit_breaks[line])**k
     return my_eqn.simplify()
 
-#Code from Sunrose 
-#Gives non-visibility tori for testing
+
+# Code from Sunrose
+# Gives non-visibility tori for testing
 D = OrigamiDatabase()
 q = D.query()
 qlist = q.list()
+
 
 def unit_hor_saddle(O):
     count = 0
@@ -783,12 +836,14 @@ def unit_hor_saddle(O):
                     return True
     return False
 
+
 def is_unobstructed(O):
     cusp_reps = O.teichmueller_curve().cusp_representatives()
     for item in cusp_reps:
         if not unit_hor_saddle(item[0]):
             return False
     return True
+
 
 def obstructed(n, **kwargs):
     obstructed = []
@@ -797,10 +852,12 @@ def obstructed(n, **kwargs):
     for item in p:
         if not is_unobstructed(item):
             obstructed.append(item)
-            count_obstructed+= item.teichmueller_curve().orbit_graph().num_verts()
+            count_obstructed += item.teichmueller_curve().orbit_graph().num_verts()
     return (obstructed, count_obstructed)
 
 # list of permutations
+
+
 def perms_list(n, **kwargs):
     obstructed = []
     p = D.query(nb_squares=n, **kwargs)
@@ -810,9 +867,11 @@ def perms_list(n, **kwargs):
             for perm in item.teichmueller_curve():
                 obstructed.append(perm)
     return obstructed
-    
+
 # generate vectors for saddle connections on STS
-def vectors2(perm, length = 200):
+
+
+def vectors2(perm, length=200):
     a = str(perm)
     h, v = a.split("\n")
     S = SymmetricGroup(len(h))
@@ -826,61 +885,69 @@ def vectors2(perm, length = 200):
         if vec not in slopes_all:
             if vec[0] >= -length/20 and vec[0] <= length/20:
                 if vec[1] >= -length/20 and vec[1] <= length/20:
-                    slopes_all.append(item.holonomy().n())         
+                    slopes_all.append(item.holonomy().n())
     vecs = []
     for vec in slopes_all:
-        item = np.array([[vec[0]],[vec[1]]])
+        item = np.array([[vec[0]], [vec[1]]])
         vecs.append(item)
     return vecs
+
 
 def save_arrays_to_file(file_path, arrays_list):
     # Save arrays to a single NumPy file
     np.save(file_path, arrays_list)
-    
+
 # take files from saddle.py and load them into notebook
+
+
 def load_arrays_from_file(file_path):
     # Load arrays from the NumPy file
     arrays_list = np.load(file_path, allow_pickle=True)
-    
+
     # Ensure each element in the list is a NumPy array
     arrays_list = [np.array(array) for array in arrays_list]
-    
+
     return arrays_list
+
 
 def covolume(secs):
     sum = 0
     for i in range(len(secs)):
-    
+
         all_points = []
         for item in secs[i].points_top:
             all_points.append(item)
         for item in secs[i].points_bottom:
             all_points.append(item)
-            
+
         all_points = set(all_points)
         all_points = list(all_points)
         all_points.sort()
-        
+
         m = 0
         n = 0
-        for k in range (1, len(all_points)):
-            if (not(all_points[k-1] >= secs[i].points_top[m] and all_points[k] <= secs[i].points_top[m+1])):
+        for k in range(1, len(all_points)):
+            if (not (all_points[k-1] >= secs[i].points_top[m] and all_points[k] <= secs[i].points_top[m+1])):
                 m += 1
-            if (not(all_points[k-1] >= secs[i].points_bottom[n] and all_points[k] <= secs[i].points_bottom[n+1])):
+            if (not (all_points[k-1] >= secs[i].points_bottom[n] and all_points[k] <= secs[i].points_bottom[n+1])):
                 n += 1
             top_eq = secs[i].f_top[m]
             bottom_eq = secs[i].f_bottom[n]
             upper = all_points[k]
             lower = all_points[k-1]
-            
+
             # Perform the double integral
-            f = lambda y,x :secs[i].vec[1][0] / (x * (secs[i].vec[0][0] * x + secs[i].vec[1][0] * y))
-            result, error = integrate.dblquad(f, lower, upper, lambda x: bottom_eq(x), lambda x: top_eq(x)) 
+            def f(y, x): return secs[i].vec[1][0] / (x *
+                                                     (secs[i].vec[0][0] * x + secs[i].vec[1][0] * y))
+            result, error = integrate.dblquad(
+                f, lower, upper, lambda x: bottom_eq(x), lambda x: top_eq(x))
             sum += result
     return sum
 
+
 def read_df(n_squares, index, cusp):
-    df = pd.read_csv(os.path.join("results", f"{n_squares} - {index}", "df - " + str(cusp)))
+    df = pd.read_csv(os.path.join(
+        "results", f"{n_squares} - {index}", "df - " + str(cusp)))
 
     def read_vec(s):
         s = s.replace("[", "")
@@ -888,7 +955,7 @@ def read_df(n_squares, index, cusp):
         nums = s.split("\n")
         nums[0] = float(nums[0])
         nums[1] = float(nums[1])
-        return np.array([[nums[0]],[nums[1]]])
+        return np.array([[nums[0]], [nums[1]]])
 
     df["vec"] = df["vec"].apply(read_vec)
     return df
