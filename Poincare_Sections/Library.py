@@ -27,6 +27,11 @@ def generators(perm, vecs0):
         generators.append(m.matrix())
     return generators
 
+class DetailsError(Exception):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
 
 # For each cusp of the square tiled surface, computes a generating matrix and
 # its eigenvectors, then finds the shortest saddle connection in the direction # of the eigenvector by producing a big list of saddle connections and then checking all of them.
@@ -111,7 +116,7 @@ def poincare_details(perm, vecs0, generators):
                             saddle_vec = saddle
                             mag = mag_saddle
         if check == 0:
-            raise ValueError(f"No saddle vec for eigenvector {vec}")
+            raise DetailsError(f"No saddle vec for eigenvector {vec}")
         saddle_vecs.append(saddle_vec)
     # find the counter-clockwise angle from the x-axis to the eigenvectors
     thetas = []
@@ -223,7 +228,7 @@ def poincare_details1(perm, vecs0, generators):
                     saddle_vec = saddle
 
         if saddle_vec is None:
-            raise ValueError(f"No saddle vec for eigenvector {vec}")
+            raise DetailsError(f"No saddle vec for eigenvector {vec}")
         saddle_vecs.append(saddle_vec)
 
     # find the counter-clockwise angle from the x-axis to the eigenvectors
