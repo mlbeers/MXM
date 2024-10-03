@@ -13,9 +13,8 @@ from time import time
 from scipy import integrate
 import unittest
 from surface_dynamics.all import Origami
-from .utils import load_arrays_from_file  # testing
+from utils import load_arrays_from_file  # testing
 from sage.all import matrix  # testing
-import time  # testing
 
 
 def generators(perm, vecs0):
@@ -118,70 +117,61 @@ def poincare_details(perm, vecs0, generators):
         if check == 0:
             raise DetailsError(f"No saddle vec for eigenvector {vec}")
         saddle_vecs.append(saddle_vec)
+
     # find the counter-clockwise angle from the x-axis to the eigenvectors
     thetas = []
-    for i in range(len(saddle_vecs)):
-        mag = (saddle_vecs[i][0]**2 + saddle_vecs[i][1]**2)**0.5
-        theta = np.arccos(np.dot(np.array([[1, 0]]), saddle_vecs[i])/mag)
-        if saddle_vecs[i][1] < 0:
-            theta = 2 * math.pi - theta
+    for vec in saddle_vecs:
+        mag = np.linalg.norm(vec)  # Calculate magnitude
+        dot_product = np.dot([1, 0], vec)  # Dot product with (1,0)
+        theta = np.arccos(dot_product / mag)  # Calculate angle
+        if vec[1] < 0:
+            theta = 2 * np.pi - theta
         thetas.append(theta)
+    
     # find the rotation matrix that takes the vector (1,0) to the vector in the direction of each eigenvector
     rots = []
     for theta in thetas:
-        rot = np.array([[round(np.cos(theta)[0][0], 5), round(-np.sin(theta)[0][0], 5)],
-                       [round(np.sin(theta)[0][0], 5), round(np.cos(theta)[0][0], 5)]])
-        rots.append(rot)
-
-    # find a constant value such that mult*rot@(1,0) = saddle_vec while accounting for rounding errors and zero matrix inputs
-    mults = []
-    for i in range(len(rots)):
-        matrix = rots[i]@np.array([[1], [0]])
-        if matrix[0][0] != 0:
-            mult1 = saddle_vecs[i][0][0]/matrix[0][0]
-        else:
-            mult1 = 0
-        if matrix[1][0] != 0:
-            mult2 = saddle_vecs[i][1][0]/matrix[1][0]
-        else:
-            mult2 = 0
-        if mult1 != 0 and mult2 == 0:
-            mult = mult1
-        elif mult1 == 0 and mult2 != 0:
-            mult = mult2
-        elif mult1 == 0 and mult2 == 0:
-            raise ValueError('both mults equal zero')
-        elif abs(mult1 - mult2) <= 0.001:
-            mult = mult1
-        elif abs(mult1 - mult2) >= 0.001:
-            raise ValueError(f'mults are different {mult1}, {mult2}')
-        mults.append(mult)
-        mult1 = None
-        mult2 = None
-        mult = None
+        rot = np.array([[np.cos(theta), -np.sin(theta)],
+                        [np.sin(theta), np.cos(theta)]])
+        rots.append(rot.reshape(2,2))
+    
     # find c_inv and c
     Cs = []
     C_invs = []
-    for i in range(len(mults)):
-        c_inv = mults[i]*rots[i]
+    for i in range(len(rots)):
+        mag = np.linalg.norm(saddle_vecs[i])
+        if mag == 0:
+            raise ValueError("Magnitude of saddle vector is zero.")
+        S = np.array([[mag, 0], [0, 1/mag]])
+        c_inv = rots[i] @ S
         c = np.linalg.inv(c_inv)
         Cs.append(c)
         C_invs.append(c_inv)
-    # alpha is the top right value of the matrix M = c @ generator @ c_inv. M must have 1s on the diagonal and 0 in the bottom left
+
+    epsilon = 0.005
+
+    # alpha is the top right value of the matrix M = c @ generator @ c_inv. 
+    # M must have 1s on the diagonal and 0 in the bottom left
     alphas = []
     Ms = []
     for i in range(len(generators)):
-        M = Cs[i]@generators[i]@C_invs[i]
+        M = Cs[i] @ generators[i] @ C_invs[i]
         Ms.append(M)
-        if M[1][0] >= 1/1000000 and M[1][0] <= -1/1000000:
+    
+        # Check if the conditions are met
+        if not (abs(M[0][0] - 1) < epsilon and 
+                abs(M[1][1] - 1) < epsilon and 
+                abs(M[1][0]) < epsilon):
             raise ValueError(
-                f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}")
+                f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}\nsaddle: {saddle_vecs[i]}, \neigenvecs: {eigenvecs[i]}, \ndeterminant C: {np.linalg.det(Cs[i])}, \n {Cs[i]@saddle_vecs[i]}, \n {C_invs[i]@np.array([[1],[0]])}")
+        
         alphas.append(round(M[0][1], 5))
+        
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
 
 # A copy of poincare_details for optimization. All optimization changes should go here!
-def poincare_details(perm, vecs0, generators):
+def poincare_details1(perm, vecs0, generators):
     # Validate that all eigenvalues are 1
     eigs = []
     for matrix in generators:
@@ -192,14 +182,20 @@ def poincare_details(perm, vecs0, generators):
             raise ValueError("Eigenvalue not equal to 1 or eigenvalues are different")
 
     # Extract right eigenvectors for each generator
-    eigenvecs = np.array([matrix.eigenvectors_right()[0][1][0].reshape(2, 1) for matrix in generators])
+    eigenvecs = np.array([np.array(matrix.eigenvectors_right()[0][1][0]).reshape(2, 1) for matrix in generators])
 
-    # Calculate magnitude, slope, and sign for eigenvectors and saddle connections
     def get_magnitude_slope_sign(vectors):
-        magnitudes = np.linalg.norm(vectors, axis=1)
-        slopes = np.divide(vectors[:, 1], vectors[:, 0], out=np.full_like(vectors[:, 1], float('inf')), where=vectors[:, 0] != 0)
-        x_signs = np.sign(vectors[:, 0])
-        y_signs = np.sign(vectors[:, 1])
+        # Stack the list of 2D numpy arrays into a 2D array
+        vectors = np.hstack(vectors)  # Concatenate into a 2D array
+        
+        magnitudes = np.linalg.norm(vectors, axis=0)
+        
+        # Make sure the output array for division is explicitly float
+        slopes = np.divide(vectors[1], vectors[0], out=np.full_like(vectors[1], float('inf'), dtype=np.float64), where=vectors[0] != 0)
+        
+        x_signs = np.sign(vectors[0])
+        y_signs = np.sign(vectors[1])
+        
         return magnitudes, slopes, x_signs, y_signs
 
     eigen_mags, eigen_slopes, eigen_x_signs, eigen_y_signs = get_magnitude_slope_sign(eigenvecs)
@@ -213,7 +209,7 @@ def poincare_details(perm, vecs0, generators):
         y_sign_vec = eigen_y_signs[i]
 
         # Identify matches by slope, x, and y direction
-        slope_matches = np.isclose(slope_vec, saddle_slopes)
+        slope_matches = (slope_vec == saddle_slopes)
         x_sign_matches = x_sign_vec == saddle_x_signs
         y_sign_matches = y_sign_vec == saddle_y_signs
 
@@ -228,48 +224,54 @@ def poincare_details(perm, vecs0, generators):
 
     saddle_vecs = np.array(saddle_vecs)
 
-    # Compute angles (thetas) between saddle vectors and the x-axis
-    thetas = np.arccos(np.einsum('ij,ij->i', saddle_vecs, np.array([[1, 0]])) / saddle_mags)
-    thetas = np.where(saddle_vecs[:, 1] < 0, 2 * np.pi - thetas, thetas)
-
-    # Compute rotation matrices
-    cos_vals = np.cos(thetas)
-    sin_vals = np.sin(thetas)
-    rots = np.array([[cos_vals, -sin_vals], [sin_vals, cos_vals]]).transpose(2, 0, 1)
-
-    # Calculate multipliers to adjust saddle vectors
-    mults = []
-    for i in range(len(rots)):
-        rotated_vec = rots[i] @ np.array([[1], [0]])
-        mult1 = saddle_vecs[i, 0] / rotated_vec[0, 0] if rotated_vec[0, 0] != 0 else 0
-        mult2 = saddle_vecs[i, 1] / rotated_vec[1, 0] if rotated_vec[1, 0] != 0 else 0
-
-        if mult1 == 0 and mult2 == 0:
-            raise ValueError('Both multipliers are zero')
-        elif abs(mult1 - mult2) <= 0.001:
-            mults.append(mult1)
-        else:
-            raise ValueError(f'Multipliers differ: {mult1}, {mult2}')
-
-    mults = np.array(mults)
-
-    # Compute c_inv and c matrices
+    # find the counter-clockwise angle from the x-axis to the eigenvectors
+    thetas = []
+    for vec in saddle_vecs:
+        mag = np.linalg.norm(vec)  # Calculate magnitude
+        dot_product = np.dot([1, 0], vec)  # Dot product with (1,0)
+        theta = np.arccos(dot_product / mag)  # Calculate angle
+        if vec[1] < 0:
+            theta = 2 * np.pi - theta
+        thetas.append(theta)
+    
+    # find the rotation matrix that takes the vector (1,0) to the vector in the direction of each eigenvector
+    rots = []
+    for theta in thetas:
+        rot = np.array([[np.cos(theta), -np.sin(theta)],
+                        [np.sin(theta), np.cos(theta)]])
+        rots.append(rot.reshape(2,2))
+    
+    # find c_inv and c
     Cs = []
     C_invs = []
-    for i in range(len(mults)):
-        c_inv = mults[i] * rots[i]
-        Cs.append(np.linalg.inv(c_inv))
+    for i in range(len(rots)):
+        mag = np.linalg.norm(saddle_vecs[i])
+        if mag == 0:
+            raise ValueError("Magnitude of saddle vector is zero.")
+        S = np.array([[mag, 0], [0, 1/mag]])
+        c_inv = rots[i] @ S
+        c = np.linalg.inv(c_inv)
+        Cs.append(c)
         C_invs.append(c_inv)
 
-    # Find alpha and validate the conjugate matrix M
+    epsilon = 0.005
+
+    # alpha is the top right value of the matrix M = c @ generator @ c_inv. 
+    # M must have 1s on the diagonal and 0 in the bottom left
     alphas = []
     Ms = []
     for i in range(len(generators)):
         M = Cs[i] @ generators[i] @ C_invs[i]
         Ms.append(M)
-        if not (-1e-6 <= M[1, 0] <= 1e-6):  # Ensure M[1, 0] is approximately 0
-            raise ValueError(f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}")
-        alphas.append(round(M[0, 1], 5))
+    
+        # Check if the conditions are met
+        if not (abs(M[0][0] - 1) < epsilon and 
+                abs(M[1][1] - 1) < epsilon and 
+                abs(M[1][0]) < epsilon):
+            raise ValueError(
+                f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}\nsaddle: {saddle_vecs[i]}, \neigenvecs: {eigenvecs[i]}, \ndeterminant C: {np.linalg.det(Cs[i])}, \nC*saddle: {Cs[i]@saddle_vecs[i]}, \nC_inv*(1,0): {C_invs[i]@np.array([[1],[0]])}, \ni: {i}")
+        
+        alphas.append(round(M[0][1], 5))
 
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 

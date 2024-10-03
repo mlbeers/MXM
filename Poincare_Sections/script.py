@@ -2,8 +2,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
 from flatsurf import *
-import numpy as np
-from matplotlib import pyplot as plt
 import os
 import pwlf
 import os
@@ -20,6 +18,10 @@ from sympy import solve, lambdify
 import traceback
 import dill
 import sys
+import unittest
+from surface_dynamics.all import Origami
+from utils import load_arrays_from_file  # testing
+from sage.all import matrix  # testing
 
 # number of squares for STS
 n_squares = int(sys.argv[1])
@@ -28,32 +30,30 @@ index = int(sys.argv[2])
 
 permutations = perms_list(n_squares)
 
-print("\n\n INDEX - " + str(index) + "\n\n")
-
 perm = permutations[index]
 
 # get a list of saddle connections
 vec_file = "vecs" + str(n_squares) + "-" + str(index) + ".npy"
 vecs0 = load_arrays_from_file(os.path.join("vecs", vec_file))
 
-print(len(vecs0))
+print(f'number of vecs: {len(vecs0)}')
 
 # generate a list of alpha, c matrices, and eigenvectors for each cusp of the STS to experiment with to find "nice" sections for our poincare sections
 a = []
 c = []
 e = []
 g = []
-for num in range(200):
+for num in range(10):
     try:
-        generators = generators(perm, vecs0)
-        alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs = poincare_details(perm, vecs0, generators)
+        gs = generators(perm, vecs0)
+        alphas, Cs, C_invs, eigs, Ms, gens, eigenvecs = poincare_details(perm, vecs0, gs)
     except:
         continue
     a.append(alphas)
     c.append(Cs)
     e.append(eigenvecs)
     g.append(generators)
-print(len(a))
+print(f'length of alphas: {len(a)}')
 
 # write these values to a file
 data = [a, c, e, g]
@@ -76,15 +76,15 @@ for j in range(len(a[0])):
         # get dimensions of section
         vecs, x_vals, m0, m1, x0, y0, dx_y, z = setup(
             a[i][j], c[i][j], e[i][j], vecs0, dx, improved)
-        print(z)
+        #print(z)
         print("i = " + str(i), "j = " + str(j))
 
-        if float(z) <= float(1/50000):
-            print("too small")
-            continue
+        #if float(z) <= float(1/50000):
+            #print("too small")
+            #continue
 
         # create a dataframe with winning vector at certain points in the section
-        df = winners(vecs, x_vals, m0, m1, y0, dx, dx_y)
+        df = winners1(vecs, x_vals, m0, m1, y0, dx, dx_y)
 
         # plot poincare section and save
         try:
