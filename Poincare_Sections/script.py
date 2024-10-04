@@ -46,7 +46,7 @@ g = []
 for num in range(10):
     try:
         gs = generators(perm, vecs0)
-        alphas, Cs, C_invs, eigs, Ms, gens, eigenvecs = poincare_details(perm, vecs0, gs)
+        alphas, Cs, C_invs, eigs, Ms, gens, eigenvecs = poincare_details1(perm, vecs0, gs)
     except:
         continue
     a.append(alphas)
