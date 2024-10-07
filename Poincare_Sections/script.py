@@ -43,7 +43,7 @@ a = []
 c = []
 e = []
 g = []
-for num in range(10):
+for num in range(50):
     try:
         gs = generators(perm, vecs0)
         alphas, Cs, C_invs, eigs, Ms, gens, eigenvecs = poincare_details1(perm, vecs0, gs)
@@ -79,9 +79,9 @@ for j in range(len(a[0])):
         #print(z)
         print("i = " + str(i), "j = " + str(j))
 
-        #if float(z) <= float(1/50000):
-            #print("too small")
-            #continue
+        if float(z) <= float(1/50000):
+            print("too small")
+            continue
 
         # create a dataframe with winning vector at certain points in the section
         df = winners1(vecs, x_vals, m0, m1, y0, dx, dx_y)
