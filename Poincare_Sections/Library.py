@@ -974,7 +974,7 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     t0 = time()
     for a in np.arange(dz, 1, dz):
         # Matrix stays outside the inner loop
-        Mab = np.array([[a, 1 - dx / y0], [0, a]])
+        Mab = np.array([[a, m0*a + 1/y0 - dx_y], [0, a]])
 
         # Apply the transformation to all vectors at once
         new_vecs = Mab @ vecs
@@ -1015,8 +1015,8 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
 
     # side edge
     t0 = time()
-    y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 +
-                       (1-dx)/y0 - dx_y, dz*(m0-m1))
+    y_vals = np.arange(m1 + 1/y0 + dx_y, m0 +
+                       1/y0 - dx_y, dz*(m0-m1))
     for b in y_vals:
         Mab = np.array([[1 - dx, b], [0, 1-dx]])
         # Apply the transformation to all vectors at once
@@ -1058,7 +1058,7 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     # diagonal
     t0 = time()
     for a in np.arange(0 + dz, 1, dz):
-        Mab = np.array([[a, m1*a + 1-dx/y0 + dx_y], [0, a]])
+        Mab = np.array([[a, m1*a + 1/y0 + dx_y], [0, a]])
         # Apply the transformation to all vectors at once
         new_vecs = Mab @ vecs
 
