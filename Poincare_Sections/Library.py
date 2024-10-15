@@ -13,9 +13,8 @@ from time import time
 from scipy import integrate
 import unittest
 from surface_dynamics.all import Origami
-from .utils import load_arrays_from_file  # testing
+from utils import load_arrays_from_file  # testing
 from sage.all import matrix  # testing
-import time  # testing
 
 
 def generators(perm, vecs0):
@@ -118,178 +117,167 @@ def poincare_details(perm, vecs0, generators):
         if check == 0:
             raise DetailsError(f"No saddle vec for eigenvector {vec}")
         saddle_vecs.append(saddle_vec)
+
     # find the counter-clockwise angle from the x-axis to the eigenvectors
     thetas = []
-    for i in range(len(saddle_vecs)):
-        mag = (saddle_vecs[i][0]**2 + saddle_vecs[i][1]**2)**0.5
-        theta = np.arccos(np.dot(np.array([[1, 0]]), saddle_vecs[i])/mag)
-        if saddle_vecs[i][1] < 0:
-            theta = 2 * math.pi - theta
+    for vec in saddle_vecs:
+        mag = np.linalg.norm(vec)  # Calculate magnitude
+        dot_product = np.dot([1, 0], vec)  # Dot product with (1,0)
+        theta = np.arccos(dot_product / mag)  # Calculate angle
+        if vec[1] < 0:
+            theta = 2 * np.pi - theta
         thetas.append(theta)
+    
     # find the rotation matrix that takes the vector (1,0) to the vector in the direction of each eigenvector
     rots = []
     for theta in thetas:
-        rot = np.array([[round(np.cos(theta)[0][0], 5), round(-np.sin(theta)[0][0], 5)],
-                       [round(np.sin(theta)[0][0], 5), round(np.cos(theta)[0][0], 5)]])
-        rots.append(rot)
-
-    # find a constant value such that mult*rot@(1,0) = saddle_vec while accounting for rounding errors and zero matrix inputs
-    mults = []
-    for i in range(len(rots)):
-        matrix = rots[i]@np.array([[1], [0]])
-        if matrix[0][0] != 0:
-            mult1 = saddle_vecs[i][0][0]/matrix[0][0]
-        else:
-            mult1 = 0
-        if matrix[1][0] != 0:
-            mult2 = saddle_vecs[i][1][0]/matrix[1][0]
-        else:
-            mult2 = 0
-        if mult1 != 0 and mult2 == 0:
-            mult = mult1
-        elif mult1 == 0 and mult2 != 0:
-            mult = mult2
-        elif mult1 == 0 and mult2 == 0:
-            raise ValueError('both mults equal zero')
-        elif abs(mult1 - mult2) <= 0.001:
-            mult = mult1
-        elif abs(mult1 - mult2) >= 0.001:
-            raise ValueError(f'mults are different {mult1}, {mult2}')
-        mults.append(mult)
-        mult1 = None
-        mult2 = None
-        mult = None
+        rot = np.array([[np.cos(theta), -np.sin(theta)],
+                        [np.sin(theta), np.cos(theta)]])
+        rots.append(rot.reshape(2,2))
+    
     # find c_inv and c
     Cs = []
     C_invs = []
-    for i in range(len(mults)):
-        c_inv = mults[i]*rots[i]
+    for i in range(len(rots)):
+        mag = np.linalg.norm(saddle_vecs[i])
+        if mag == 0:
+            raise ValueError("Magnitude of saddle vector is zero.")
+        S = np.array([[mag, 0], [0, 1/mag]])
+        c_inv = rots[i] @ S
         c = np.linalg.inv(c_inv)
         Cs.append(c)
         C_invs.append(c_inv)
-    # alpha is the top right value of the matrix M = c @ generator @ c_inv. M must have 1s on the diagonal and 0 in the bottom left
+
+    epsilon = 0.005
+
+    # alpha is the top right value of the matrix M = c @ generator @ c_inv. 
+    # M must have 1s on the diagonal and 0 in the bottom left
     alphas = []
     Ms = []
     for i in range(len(generators)):
-        M = Cs[i]@generators[i]@C_invs[i]
+        M = Cs[i] @ generators[i] @ C_invs[i]
         Ms.append(M)
-        if M[1][0] >= 1/1000000 and M[1][0] <= -1/1000000:
+    
+        # Check if the conditions are met
+        if not (abs(M[0][0] - 1) < epsilon and 
+                abs(M[1][1] - 1) < epsilon and 
+                abs(M[1][0]) < epsilon):
             raise ValueError(
-                f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}")
+                f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}\nsaddle: {saddle_vecs[i]}, \neigenvecs: {eigenvecs[i]}, \ndeterminant C: {np.linalg.det(Cs[i])}, \n {Cs[i]@saddle_vecs[i]}, \n {C_invs[i]@np.array([[1],[0]])}")
+        
         alphas.append(round(M[0][1], 5))
+        
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
 
 # A copy of poincare_details for optimization. All optimization changes should go here!
 def poincare_details1(perm, vecs0, generators):
-    # find the eigenvectors for each generator and make sure they are 1
+    # Validate that all eigenvalues are 1
     eigs = []
     for matrix in generators:
         eig1, eig2 = matrix.eigenvalues()
-        if eig1 == eig2:
-            if eig1 == 1:
-                eigs.append(eig1)
-            else:
-                raise ValueError("Eigenvalue not equal to 1")
+        if eig1 == eig2 == 1:
+            eigs.append(eig1)
         else:
-            raise ValueError("Different eigenvalues")
-    # find the eigenvectors for each generator
-    eigenvecs = []
-    for matrix in generators:
-        vec = matrix.eigenvectors_right()[0][1][0]
-        vec = np.array([[vec[0]], [vec[1]]])
-        eigenvecs.append(vec)
-    # find the magnitude, slope, x-direction, and y-direction of each eigenvector
+            raise ValueError("Eigenvalue not equal to 1 or eigenvalues are different")
+
+    # Extract right eigenvectors for each generator
+    eigenvecs = np.array([np.array(matrix.eigenvectors_right()[0][1][0]).reshape(2, 1) for matrix in generators])
+
+    def get_magnitude_slope_sign(vectors):
+        # Stack the list of 2D numpy arrays into a 2D array
+        vectors = np.hstack(vectors)  # Concatenate into a 2D array
+        
+        magnitudes = np.linalg.norm(vectors, axis=0)
+        
+        # Make sure the output array for division is explicitly float
+        slopes = np.divide(vectors[1], vectors[0], out=np.full_like(vectors[1], float('inf'), dtype=np.float64), where=vectors[0] != 0)
+        
+        x_signs = np.sign(vectors[0])
+        y_signs = np.sign(vectors[1])
+        
+        return magnitudes, slopes, x_signs, y_signs
+
+    eigen_mags, eigen_slopes, eigen_x_signs, eigen_y_signs = get_magnitude_slope_sign(eigenvecs)
+    saddle_mags, saddle_slopes, saddle_x_signs, saddle_y_signs = get_magnitude_slope_sign(vecs0)
+
+    # Find corresponding saddle vectors for eigenvectors
     saddle_vecs = []
-    for vec in eigenvecs:
-        # Update: Try to optimize the original 44-93 lines
-        # use numpy's linalg.norm to calc vector's norm
-        mag_vec = np.linalg.norm(vec)
-        slope_vec = float('inf') if vec[0] == 0 else vec[1] / vec[0]
-        x_sign_vec = np.sign(vec[0])
-        y_sign_vec = np.sign(vec[1])
+    for i in range(len(eigenvecs)):
+        slope_vec = eigen_slopes[i]
+        x_sign_vec = eigen_x_signs[i]
+        y_sign_vec = eigen_y_signs[i]
 
-        saddle_vec = None
-        min_mag = float('inf')
+        # Identify matches by slope, x, and y direction
+        slope_matches = (slope_vec == saddle_slopes)
+        x_sign_matches = x_sign_vec == saddle_x_signs
+        y_sign_matches = y_sign_vec == saddle_y_signs
 
-        for saddle in vecs0:
-            mag_saddle = np.linalg.norm(saddle)
-            slope_saddle = float(
-                'inf') if saddle[0] == 0 else saddle[1] / saddle[0]
-            x_sign_saddle = np.sign(saddle[0])
-            y_sign_saddle = np.sign(saddle[1])
+        valid_saddles = np.where(slope_matches & x_sign_matches & y_sign_matches)[0]
 
-            # Check if the slope and direction match
-            if (slope_vec == slope_saddle and x_sign_vec == x_sign_saddle and y_sign_vec == y_sign_saddle):
+        if len(valid_saddles) == 0:
+            raise DetailsError(f"No saddle vec for eigenvector {eigenvecs[i]}")
 
-                # Update the smallest saddle connection
-                if mag_saddle < min_mag:
-                    min_mag = mag_saddle
-                    saddle_vec = saddle
+        # Select saddle with smallest magnitude
+        smallest_idx = valid_saddles[np.argmin(saddle_mags[valid_saddles])]
+        saddle_vecs.append(vecs0[smallest_idx])
 
-        if saddle_vec is None:
-            raise DetailsError(f"No saddle vec for eigenvector {vec}")
-        saddle_vecs.append(saddle_vec)
+    saddle_vecs = np.array(saddle_vecs)
 
     # find the counter-clockwise angle from the x-axis to the eigenvectors
     thetas = []
-    for i in range(len(saddle_vecs)):
-        mag = (saddle_vecs[i][0]**2 + saddle_vecs[i][1]**2)**0.5
-        theta = np.arccos(np.dot(np.array([[1, 0]]), saddle_vecs[i])/mag)
-        if saddle_vecs[i][1] < 0:
-            theta = 2 * math.pi - theta
+    for vec in saddle_vecs:
+        mag = np.linalg.norm(vec)  # Calculate magnitude
+        dot_product = np.dot([1, 0], vec)  # Dot product with (1,0)
+        theta = np.arccos(dot_product / mag)  # Calculate angle
+        if vec[1] < 0:
+            theta = 2 * np.pi - theta
         thetas.append(theta)
+    
     # find the rotation matrix that takes the vector (1,0) to the vector in the direction of each eigenvector
     rots = []
     for theta in thetas:
-        rot = np.array([[round(np.cos(theta)[0][0], 5), round(-np.sin(theta)[0][0], 5)],
-                       [round(np.sin(theta)[0][0], 5), round(np.cos(theta)[0][0], 5)]])
-        rots.append(rot)
-
-    # find a constant value such that mult*rot@(1,0) = saddle_vec while accounting for rounding errors and zero matrix inputs
-    mults = []
-    for i in range(len(rots)):
-        matrix = rots[i]@np.array([[1], [0]])
-        if matrix[0][0] != 0:
-            mult1 = saddle_vecs[i][0][0]/matrix[0][0]
-        else:
-            mult1 = 0
-        if matrix[1][0] != 0:
-            mult2 = saddle_vecs[i][1][0]/matrix[1][0]
-        else:
-            mult2 = 0
-        if mult1 != 0 and mult2 == 0:
-            mult = mult1
-        elif mult1 == 0 and mult2 != 0:
-            mult = mult2
-        elif mult1 == 0 and mult2 == 0:
-            raise ValueError('both mults equal zero')
-        elif abs(mult1 - mult2) <= 0.001:
-            mult = mult1
-        elif abs(mult1 - mult2) >= 0.001:
-            raise ValueError(f'mults are different {mult1}, {mult2}')
-        mults.append(mult)
-        mult1 = None
-        mult2 = None
-        mult = None
+        rot = np.array([[np.cos(theta), -np.sin(theta)],
+                        [np.sin(theta), np.cos(theta)]])
+        rots.append(rot.reshape(2,2))
+    
     # find c_inv and c
     Cs = []
     C_invs = []
-    for i in range(len(mults)):
-        c_inv = mults[i]*rots[i]
+    for i in range(len(rots)):
+        mag = np.linalg.norm(saddle_vecs[i])
+        if mag == 0:
+            raise ValueError("Magnitude of saddle vector is zero.")
+        S = np.array([[mag, 0], [0, 1/mag]])
+        c_inv = rots[i] @ S
         c = np.linalg.inv(c_inv)
+
+        c = np.round(c, decimals=5)
+        c_inv = np.round(c_inv, decimals=5)
+        
         Cs.append(c)
         C_invs.append(c_inv)
-    # alpha is the top right value of the matrix M = c @ generator @ c_inv. M must have 1s on the diagonal and 0 in the bottom left
+
+    epsilon = 0.005
+
+    # alpha is the top right value of the matrix M = c @ generator @ c_inv. 
+    # M must have 1s on the diagonal and 0 in the bottom left
     alphas = []
     Ms = []
     for i in range(len(generators)):
-        M = Cs[i]@generators[i]@C_invs[i]
+        M = Cs[i] @ generators[i] @ C_invs[i]
+        M = np.round(M, decimals = 5)
         Ms.append(M)
-        if M[1][0] >= 1/1000000 and M[1][0] <= -1/1000000:
+    
+        # Check if the conditions are met
+        if not (abs(M[0][0] - 1) < epsilon and 
+                abs(M[1][1] - 1) < epsilon and 
+                abs(M[1][0]) < epsilon):
             raise ValueError(
-                f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}")
+                f"Wrong conjugate matrix\nC: {Cs[i]}\nC_inv: {C_invs[i]}\nM: {M}\ngenerator: {generators[i]}\nsaddle: {saddle_vecs[i]}, \neigenvecs: {eigenvecs[i]}, \ndeterminant C: {np.linalg.det(Cs[i])}, \nC*saddle: {Cs[i]@saddle_vecs[i]}, \nC_inv*(1,0): {C_invs[i]@np.array([[1],[0]])}, \ni: {i}")
+        
         alphas.append(round(M[0][1], 5))
+
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
 # A try-catch wrapper on poincare_details, for testing purposes.
@@ -585,19 +573,19 @@ def plot(df, vecs, c, j, n_squares, index, test=False):
 
     plt.title(str(c) + "\n", loc="left", fontsize=25)
     if test == False:
+        #take out
+        plt.show()
         plt.savefig(os.path.join(
             "results", f"{n_squares} - {index}", "section - " + str(j)))
     # for troubleshooting
     if test == True:
         # display vectors on the right edge of the section from top to bottom
-        labs = list(df[df["x"] == max(df["x"])]["lab"].unique())
-        labs.reverse()
-        output = []
-        for lab in labs:
-            if lab == len(vecs):
-                continue
-            output.append([label_dict[lab][0][0], label_dict[lab][1][0]])
-        print(output)
+        vecs_list = list(df[df["x"] == max(df["x"])]["vec"])
+        unique_arrays = set(tuple(map(tuple, arr)) for arr in vecs_list)
+        unique_arrays = [np.array(arr) for arr in unique_arrays]
+        unique_arrays.reverse()
+        for arr in unique_arrays:
+            print(tuple(item[0] for item in arr))
     if len(df[df["lab"] == len(vecs)]) != 0:
         raise ValueError("Poincare section has empty portion")
     plt.show()
@@ -773,6 +761,7 @@ def pdf(vals, prob_times, dx, n_squares, index, j, test=False):
         delta = (cdf[i+1] - cdf[i])/dx
         pdf.append(delta)
     fig, ax = plt.subplots(figsize=(10, 10))
+    print(f'length of inputs: {len(times)}, {len(pdf)}')
     ax.scatter(times, pdf, s=0.5)
 
     # plot discontinuities
@@ -983,7 +972,7 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     t0 = time()
     for a in np.arange(dz, 1, dz):
         # Matrix stays outside the inner loop
-        Mab = np.array([[a, 1 - dx / y0], [0, a]])
+        Mab = np.array([[a, m0*a + 1/y0 - dx_y], [0, a]])
 
         # Apply the transformation to all vectors at once
         new_vecs = Mab @ vecs
@@ -1024,8 +1013,8 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
 
     # side edge
     t0 = time()
-    y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 +
-                       (1-dx)/y0 - dx_y, dz*(m0-m1))
+    y_vals = np.arange(m1 + 1/y0 + dx_y, m0 +
+                       1/y0 - dx_y, dz*(m0-m1))
     for b in y_vals:
         Mab = np.array([[1 - dx, b], [0, 1-dx]])
         # Apply the transformation to all vectors at once
@@ -1064,6 +1053,46 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     t1 = time()
     print("side done: " + str(t1 - t0))
 
+    # diagonal
+    t0 = time()
+    for a in np.arange(0 + dz, 1, dz):
+        Mab = np.array([[a, m1*a + 1/y0 + dx_y], [0, a]])
+        # Apply the transformation to all vectors at once
+        new_vecs = Mab @ vecs
+
+        # Extract x and y components
+        x_comps = new_vecs[0, :]
+        y_comps = new_vecs[1, :]
+
+        # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
+        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
+
+        valid_x = x_comps[valid_mask]
+        valid_y = y_comps[valid_mask]
+        # Apply the mask to filter valid vectors
+        valid_vecs = vecs[:, valid_mask]
+
+        if valid_x.size == 0:
+            winners.append(None)
+            continue
+
+        # Calculate slopes
+        slopes = valid_y / valid_x
+
+        # Find the minimum slope and handle continuity cases
+        min_slope_idx = np.argmin(slopes)
+        winner_slope = slopes[min_slope_idx]
+        winner = valid_vecs[:, min_slope_idx]
+
+        # Handle continuity by finding the smallest vector if slopes are close
+        for i, slope in enumerate(slopes):
+            if np.abs(slope - winner_slope) <= dx / 1000:
+                if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
+                    winner = valid_vecs[:, i]
+        winners.append(winner.reshape(2, 1))
+    t1 = time()
+    print("diagonal done: " + str(t1 - t0))
+    
     winners2 = []
     for winner in winners:
         try:
@@ -1165,9 +1194,9 @@ class ComputationsTestSuite(unittest.TestCase):
         self.assertEqual(len(vecs), 907654)
 
         # Run test
-        t0 = time.time()
+        t0 = time()
         details_1 = try_poincare_details((perm, vecs), 3)
-        t1 = time.time()
+        t1 = time()
         print(f'  runtime: {t1-t0}')
         # print(details_1)
 
@@ -1183,9 +1212,9 @@ class ComputationsTestSuite(unittest.TestCase):
         self.assertEqual(len(vecs), 1912)
 
         # Run test
-        t0 = time.time()
+        t0 = time()
         details_1 = try_poincare_details((perm, vecs), 1)
-        t1 = time.time()
+        t1 = time()
         print(f'  runtime: {t1-t0}')
         # print(details_1)
         # output = compute_on_cusp(details, vecs)
@@ -1229,10 +1258,10 @@ class ComputationsTestSuite(unittest.TestCase):
             vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
                 alphas[j], c_matrices[j], eigenvectors[j], vectors, dx, False)
 
-            t0 = time.time()
+            t0 = time()
             result = winners(
                 vecs, x_vals, m0, m1, y0, dx, dx_y)
-            t1 = time.time()
+            t1 = time()
             print(f'time: {t1-t0}')
             print(f'edge winning vecs: {result}')
             print(f'len: {len(result)}')
