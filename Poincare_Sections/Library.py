@@ -580,14 +580,12 @@ def plot(df, vecs, c, j, n_squares, index, test=False):
     # for troubleshooting
     if test == True:
         # display vectors on the right edge of the section from top to bottom
-        labs = list(df[df["x"] == max(df["x"])]["lab"].unique())
-        labs.reverse()
-        output = []
-        for lab in labs:
-            if lab == len(vecs):
-                continue
-            output.append([label_dict[lab][0][0], label_dict[lab][1][0]])
-        print(output)
+        vecs_list = list(df[df["x"] == max(df["x"])]["vec"])
+        unique_arrays = set(tuple(map(tuple, arr)) for arr in vecs_list)
+        unique_arrays = [np.array(arr) for arr in unique_arrays]
+        unique_arrays.reverse()
+        for arr in unique_arrays:
+            print(tuple(item[0] for item in arr))
     if len(df[df["lab"] == len(vecs)]) != 0:
         raise ValueError("Poincare section has empty portion")
     plt.show()
@@ -1196,9 +1194,9 @@ class ComputationsTestSuite(unittest.TestCase):
         self.assertEqual(len(vecs), 907654)
 
         # Run test
-        t0 = time.time()
+        t0 = time()
         details_1 = try_poincare_details((perm, vecs), 3)
-        t1 = time.time()
+        t1 = time()
         print(f'  runtime: {t1-t0}')
         # print(details_1)
 
@@ -1214,9 +1212,9 @@ class ComputationsTestSuite(unittest.TestCase):
         self.assertEqual(len(vecs), 1912)
 
         # Run test
-        t0 = time.time()
+        t0 = time()
         details_1 = try_poincare_details((perm, vecs), 1)
-        t1 = time.time()
+        t1 = time()
         print(f'  runtime: {t1-t0}')
         # print(details_1)
         # output = compute_on_cusp(details, vecs)
@@ -1260,10 +1258,10 @@ class ComputationsTestSuite(unittest.TestCase):
             vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
                 alphas[j], c_matrices[j], eigenvectors[j], vectors, dx, False)
 
-            t0 = time.time()
+            t0 = time()
             result = winners(
                 vecs, x_vals, m0, m1, y0, dx, dx_y)
-            t1 = time.time()
+            t1 = time()
             print(f'time: {t1-t0}')
             print(f'edge winning vecs: {result}')
             print(f'len: {len(result)}')
