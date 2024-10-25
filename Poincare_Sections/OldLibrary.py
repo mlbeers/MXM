@@ -17,6 +17,7 @@ from Library import DetailsError
 from utils import load_arrays_from_file  # testing
 from sage.all import matrix  # testing
 
+# old implementation of the Library.py/poincare_details
 # For each cusp of the square tiled surface, computes a generating matrix and
 # its eigenvectors, then finds the shortest saddle connection in the direction # of the eigenvector by producing a big list of saddle connections and then checking all of them.
 #
@@ -32,8 +33,6 @@ from sage.all import matrix  # testing
 #   Ms: C*generator*C^inv
 #   generators:
 #   eigenvecs: eigenvectors
-##  old implementation of the Library.py/poincare_details
-
 def poincare_details_old(perm, vecs0, generators):
     # find the eigenvectors for each generator and make sure they are 1
     eigs = []
@@ -155,3 +154,209 @@ def poincare_details_old(perm, vecs0, generators):
         alphas.append(round(M[0][1], 5))
         
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
+
+# old implementation of the Library.py/winners
+# It first computes winning vectors from all possible vectors on points on the
+# bottom and vertical edge of the poincare section. Then it computes winners
+# for all points on the poincare section from the set of winners from the sides.
+#
+# inputs:
+#   vecs: array of vectors, after being multiplied by C matrix
+#   x_vals: array of x-values in the poincare section, all between [0,1]
+#   m0: slope of the top line of the poincare section
+#   m1: slope of the bottom line of the poincare section
+#   y0: 1/y0 is the y-coordinate of the top left corner point of the section
+#   dx: step size for separation of points to sample in the section
+#   dx_y: step size for separation of points to sample in the section
+#
+# output: TODO
+def winners_old(vecs, x_vals, m0, m1, y0, dx, dx_y):
+    # dictionary for plotting
+    saddle_dict = {}
+    saddle_dict["x"] = []
+    saddle_dict["y"] = []
+    saddle_dict["lab"] = []
+    saddle_dict["vec"] = []
+    saddle_dict["time"] = []
+    possible_vecs = []
+    winners = []
+
+    t0 = time()
+    # top edge
+    dz = 1/100
+    for a in np.arange(dz, 1, dz):
+        check = 0
+        winner_slope = None
+        winner = None
+        Mab = np.array([[a, 1-dx/y0], [0, a]])
+        for vec in vecs:
+            new = Mab@vec
+            if float(new[0][0]) == 0:
+                continue
+            x = float(new[0][0])
+            y = float(new[1][0])
+            if y/x <= 0:
+                continue
+            if x <= 1 and x > 0:
+                if winner_slope == None:
+                    winner_slope = y/x
+                    winner = vec
+                    continue
+        # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+                elif abs(y/x - winner_slope) <= dx/1000:
+                    if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
+                        winner = vec
+                        continue
+                elif y/x < winner_slope:
+                    winner_slope = y/x
+                    winner = vec
+                    continue
+        winners.append(winner)
+    t1 = time()
+    print("top done: " + str(t1 - t0))
+
+    # could re-include if we need to do computations on all sides
+    # # diagonal
+    # for a in np.arange(0 + dz, 1, dz):
+    #     check = 0
+    #     winner_slope = None
+    #     winner = None
+    #     Mab = np.array([[a, m1*a + 1-dx/y0 + dx_y], [0, a]])
+    #     for vec in vecs:
+    #         new = Mab@vec
+    #         if float(new[0][0]) == 0:
+    #             continue
+    #         x = float(new[0][0])
+    #         y = float(new[1][0])
+    #         if y/x <= 0:
+    #             continue
+    #         if x <= 1 and x > 0:
+    #             if winner_slope == None:
+    #                 winner_slope = y/x
+    #                 winner = vec
+    #                 continue
+    #    # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+    #             elif abs(y/x - winner_slope) <= dx/1000:
+    #                 if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
+    #                     winner = vec
+    #                     continue
+    #             elif y/x < winner_slope:
+    #                 winner_slope = y/x
+    #                 winner = vec
+    #                 continue
+    #     winners.append(winner)
+
+    # side edge
+    t0 = time()
+    y_vals = np.arange(m1 + (1-dx)/y0 + dx_y, m0 +
+                       (1-dx)/y0 - dx_y, dz*(m0-m1))
+    for b in y_vals:
+        check = 0
+        winner_slope = None
+        winner = None
+        Mab = np.array([[1 - dx, b], [0, 1-dx]])
+        for vec in vecs:
+            new = Mab@vec
+            if float(new[0][0]) == 0:
+                continue
+            x = float(new[0][0])
+            y = float(new[1][0])
+            if y/x <= 0:
+                continue
+            if x <= 1 and x > 0:
+                if winner_slope == None:
+                    winner_slope = y/x
+                    winner = vec
+                    continue
+        # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+                elif abs(y/x - winner_slope) <= dx/1000:
+                    if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
+                        winner = vec
+                        continue
+                elif y/x < winner_slope:
+                    winner_slope = y/x
+                    winner = vec
+                    continue
+        winners.append(winner)
+    t1 = time()
+    print("side done: " + str(t1 - t0))
+
+    winners2 = []
+    for winner in winners:
+        try:
+            if winner == None:
+                continue
+        except:
+            winners2.append(winner)
+    possible_vecs1 = np.unique(winners2, axis=0)
+    for item in possible_vecs1:
+        possible_vecs.append(item)
+
+    global label_dict
+    label_dict = {}
+
+    # dictionary for vector labels
+    for i in range(len(possible_vecs)):
+        label_dict[i] = possible_vecs[i]
+
+    # for each vector, there is a time function defined as f(a,b) where a,b are points in the poincare section
+    global t_dict
+    t_dict = {}
+
+    x, y, t = sym.symbols('x y t')
+    Mab = np.array([[x, y], [0, 1/x]])
+    horo = np.array([[1, 0], [-t, 1]])
+
+    for i in range(len(possible_vecs)):
+        # apply Mab matrix, perform horocycle flow and find time t to horizontal
+        a = horo@(Mab@possible_vecs[i])
+        t_dict[i] = lambdify([x, y], solve(a[1][0], t)[0])
+
+    # for each point (a,b) in the poincare section, apply the Mab matrix to each vector and look for "winners". Winners have smallest possible slope that is greater than zero and 0 < x-component <= 1
+    for a in x_vals:
+        y_vals = np.arange(m1*a + 1/y0 + dx_y, m0*a + 1/y0 - dx_y, dx_y)
+        for b in y_vals:
+            check = 0
+            winner_slope = None
+            winner = None
+            Mab = np.array([[a, b], [0, 1/a]])
+            for vec in possible_vecs:
+                new = Mab@vec
+                if float(new[0][0]) == 0:
+                    continue
+                x = float(new[0][0])
+                y = float(new[1][0])
+                if y/x <= 0:
+                    continue
+                if x <= 1 and x > 0:
+                    if winner_slope == None:
+                        winner_slope = y/x
+                        winner = vec
+                        continue
+            # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
+                    elif abs(y/x - winner_slope) <= dx/1000:
+                        if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
+                            winner = vec
+                            continue
+                    elif y/x < winner_slope:
+                        winner_slope = y/x
+                        winner = vec
+                        continue
+
+            saddle_dict["x"].append(a)
+            saddle_dict["y"].append(b)
+            saddle_dict["vec"].append(winner)
+            for i in range(len(possible_vecs)):
+                if np.array_equal(winner, possible_vecs[i]):
+                    check += 1
+                    saddle_dict["lab"].append(i)
+                    saddle_dict["time"].append(t_dict[i](a, b))
+                    if saddle_dict["time"][-1] < 0:
+                        saddle_dict["time"][-1] = 1000
+            # if there is no winner, at (a,b), add a label so the df and plot can still be made. These section will later be made blank for trouble-shoooting
+            if check == 0:
+                saddle_dict["lab"].append(len(vecs))
+                saddle_dict["time"].append(1000)
+
+    df = pd.DataFrame.from_dict(saddle_dict)
+    return df
