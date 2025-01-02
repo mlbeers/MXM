@@ -1,11 +1,10 @@
+from sage.all import *
+from sage.all import matrix  # testing
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
 from flatsurf import *
 import pwlf
-import sympy as sym
-from sympy import Symbol
-from sympy import solve, lambdify
 import os
 import math
 from surface_dynamics.all import *
@@ -14,7 +13,12 @@ from scipy import integrate
 import unittest
 from surface_dynamics.all import Origami
 from utils import load_arrays_from_file  # testing
-from sage.all import matrix  # testing
+from fractions import Fraction as frac
+from sympy import Matrix, Rational
+import sympy as sym
+from sympy import Symbol
+from sympy import solve, lambdify
+from sympy import Rational, sqrt
 
 
 def generators(perm, vecs0):
@@ -169,7 +173,6 @@ def poincare_details(perm, vecs0, generators):
         
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
-
 # A copy of poincare_details for optimization. All optimization changes should go here!
 def poincare_details1(perm, vecs0, generators):
     # Validate that all eigenvalues are 1
@@ -280,9 +283,170 @@ def poincare_details1(perm, vecs0, generators):
 
     return alphas, Cs, C_invs, eigs, Ms, generators, eigenvecs
 
+def poincare_details2(perm, vecs0, generators):
+    M = mathematica
+    # find the eigenvectors for each generator and make sure they are 1
+    eigs = []
+    eigenvecs = []
+    for matrix in generators:
+        a = matrix[0][0]
+        b = matrix[0][1]
+        c = matrix[1][0]
+        d = matrix[1][1]
+
+        matrix_string = f"A = {{{{{a}, {b}}}, {{{c}, {d}}}}}"
+        A = M(matrix_string)
+        eigenvalues = M('eigenvalues = Eigenvalues[A]')
+        eig1 = int(M('eigenvalues[[1]]'))
+        eig2 = int(M('eigenvalues[[2]]'))
+
+        if eig1 == eig2:
+            if eig1 == 1:
+                eigs.append(eig1)
+            else:
+                raise ValueError("Eigenvalue not equal to 1")
+        else:
+            raise ValueError("Different eigenvalues")
+        
+        eigenvectors = M('eigenvectors = Eigenvectors[A]')
+        scaledEigenvector = M('scaledEigenvectors = Map[LCM @@ Denominator[#]*# &, eigenvectors][[1]]')
+        scaled_x = int(scaledEigenvector.sage()[0])
+        scaled_y = int(scaledEigenvector.sage()[1])
+        vec = np.array([[scaled_x], [scaled_y]])
+        eigenvecs.append(vec)
+
+    # find the magnitude, slope, x-direction, and y-direction of each eigenvector
+    def get_magnitude_slope_sign(vectors):
+        # Stack the list of 2D numpy arrays into a 2D array
+        vectors = np.hstack(vectors)  # Concatenate into a 2D array
+        
+        magnitudes = np.linalg.norm(vectors, axis=0)
+        
+        # Make sure the output array for division is explicitly float
+        slopes = np.divide(vectors[1], vectors[0], out=np.full_like(vectors[1], float('inf'), dtype=np.float64), where=vectors[0] != 0)
+        
+        x_signs = np.sign(vectors[0])
+        y_signs = np.sign(vectors[1])
+        
+        return magnitudes, slopes, x_signs, y_signs
+
+    eigen_mags, eigen_slopes, eigen_x_signs, eigen_y_signs = get_magnitude_slope_sign(eigenvecs)
+    saddle_mags, saddle_slopes, saddle_x_signs, saddle_y_signs = get_magnitude_slope_sign(vecs0)
+
+    # Find corresponding saddle vectors for eigenvectors
+    saddle_vecs = []
+    for i in range(len(eigenvecs)):
+        slope_vec = eigen_slopes[i]
+        x_sign_vec = eigen_x_signs[i]
+        y_sign_vec = eigen_y_signs[i]
+
+        # Identify matches by slope, x, and y direction
+        slope_matches = (slope_vec == saddle_slopes)
+        x_sign_matches = x_sign_vec == saddle_x_signs
+        y_sign_matches = y_sign_vec == saddle_y_signs
+
+        valid_saddles = np.where(slope_matches & x_sign_matches & y_sign_matches)[0]
+
+        if len(valid_saddles) == 0:
+            raise DetailsError(f"No saddle vec for eigenvector {eigenvecs[i]}")
+
+        # Select saddle with smallest magnitude
+        smallest_idx = valid_saddles[np.argmin(saddle_mags[valid_saddles])]
+        saddle_vecs.append(vecs0[smallest_idx])
+
+    saddle_vecs = np.array(saddle_vecs)
+    
+    # find c_inv and c
+    Cs = []
+    C0s = []
+    alphas = []
+    Ms = []
+    Ss = []
+    S0s = []
+    Ss = []
+    scales = []
+    mults = []
+    Js = []
+    for matrix, saddle_vec, eigen_vec in zip(generators, saddle_vecs, eigenvecs):
+        a = matrix[0][0]
+        b = matrix[0][1]
+        c = matrix[1][0]
+        d = matrix[1][1]
+    
+        matrix_string = f"A = {{{{{a}, {b}}}, {{{c}, {d}}}}}"
+        A = M(matrix_string)
+    
+        S0, J = M('{S0, J} = JordanDecomposition[A]')
+        S = M('S = Inverse[S0]')
+
+        # print(S0)
+        # print(S)
+        # print()
+        # print("-----------------------")
+    
+        S_np = np.array(S.sage())
+        a_ = frac(str(S_np[0][0]))
+        b_ = frac(str(S_np[0][1]))
+        c_ = frac(str(S_np[1][0]))
+        d_ = frac(str(S_np[1][1]))
+        S = np.array([[a_, b_], [c_, d_]], dtype=object)
+    
+        M_np = np.array(J.sage())
+        a_1 = int(M_np[0][0])
+        b_1 = int(M_np[0][1])
+        c_1 = int(M_np[1][0])
+        d_1 = int(M_np[1][1])
+        J = np.array([[a_1, b_1], [c_1, d_1]])
+
+        S0_np = np.array(S0.sage())
+        a_2 = frac(str(S0_np[0][0]))
+        b_2 = frac(str(S0_np[0][1]))
+        c_2 = frac(str(S0_np[1][0]))
+        d_2 = frac(str(S0_np[1][1]))
+        S0 = np.array([[a_2, b_2], [c_2, d_2]], dtype=object)
+    
+        if a_1 != 1 or c_1 != 0 or d_1 != 1:
+            raise ValueError(f"wrong J: {J}")
+
+        detC = (a_2*d_2) - (b_2*c_2)
+        factor = int(1)/sqrt(detC)
+        c0 = (factor * S0)
+        x_ = (c0@np.array([[1],[0]]))[0][0]
+        y_ = (c0@np.array([[1],[0]]))[1][0]
+        mult0 = saddle_vec[0][0]/x_
+        mult1 = saddle_vec[1][0]/y_
+        if x_ != 0:
+            mult = mult0
+        elif y_ != 0:
+            mult = mult1
+        else:
+            raise ValueError("Both coordinates in saddle_vec are zero. Division by zero is not defined.")
+        scale = np.array([[mult, 0], [0, int(1)/mult]], dtype=object)
+        c0 = c0 @ scale
+        c = np.array([[c0[1][1], -c0[0][1]], [-c0[1][0], c0[0][0]]], dtype=object)
+
+        J_new = c@matrix@c0
+        a_1 = int(J_new[0][0])
+        b_1 = int(J_new[0][1])
+        c_1 = int(J_new[1][0])
+        d_1 = int(J_new[1][1])
+
+        if a_1 != 1 or c_1 != 0 or d_1 != 1:
+            raise ValueError(f"wrong J_new: {J_new}")
+        
+        Cs.append(c)
+        C0s.append(c0)
+        Ms.append(J_new)
+        Js.append(J)
+        S0s.append(S0)
+        Ss.append(S)
+        scales.append(scale)
+        mults.append(mult)
+        alphas.append(J_new[0][1])
+                    
+    return alphas, Cs, C0s, eigs, Ms, generators, eigenvecs
+
 # A try-catch wrapper on poincare_details, for testing purposes.
-
-
 def try_poincare_details(sts_data, trys):
     permutation, vectors = sts_data
 
@@ -928,10 +1092,11 @@ def covolume(secs):
             bottom_eq = secs[i].f_bottom[n]
             upper = all_points[k]
             lower = all_points[k-1]
+            x_ = float(secs[i].vec[0][0])
+            y_ = float(secs[i].vec[1][0])
 
             # Perform the double integral
-            def f(y, x): return secs[i].vec[1][0] / (x *
-                                                     (secs[i].vec[0][0] * x + secs[i].vec[1][0] * y))
+            def f(y, x): return y_ / (x * (x_ * x + y_ * y))
             result, error = integrate.dblquad(
                 f, lower, upper, lambda x: bottom_eq(x), lambda x: top_eq(x))
             sum += result
@@ -946,8 +1111,8 @@ def read_df(n_squares, index, cusp):
         s = s.replace("[", "")
         s = s.replace("]", "")
         nums = s.split("\n")
-        nums[0] = float(nums[0])
-        nums[1] = float(nums[1])
+        nums[0] = frac(nums[0])
+        nums[1] = frac(nums[1])
         return np.array([[nums[0]], [nums[1]]])
 
     df["vec"] = df["vec"].apply(read_vec)
@@ -965,24 +1130,23 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     possible_vecs = []
     winners = []
     dz = 1 / 100
-    vecs = np.hstack(vecs0)  # Each vec is a column in this 2D array
+    vecs1 = np.hstack([arr.astype(float) for arr in vecs0])  # Ensure all are float64
+    vecs = np.hstack(vecs0)  # Keep the original structure for output if needed
 
     # top edge
     # Stack list of numpy arrays into a single 2D array
     t0 = time()
     for a in np.arange(dz, 1, dz):
         # Matrix stays outside the inner loop
-        Mab = np.array([[a, m0*a + 1/y0 - dx_y], [0, a]])
+        Mab = np.array([[a, m0*a + 1/y0 - dx_y], [0, a]], dtype = 'float')
 
-        # Apply the transformation to all vectors at once
-        new_vecs = Mab @ vecs
+        new_vecs = Mab @ vecs1
 
-        # Extract x and y components
         x_comps = new_vecs[0, :]
         y_comps = new_vecs[1, :]
 
         # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
-        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
+        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / np.where(x_comps == 0,np.inf, x_comps) > 0)
 
         valid_x = x_comps[valid_mask]
         valid_y = y_comps[valid_mask]
@@ -1016,16 +1180,15 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     y_vals = np.arange(m1 + 1/y0 + dx_y, m0 +
                        1/y0 - dx_y, dz*(m0-m1))
     for b in y_vals:
-        Mab = np.array([[1 - dx, b], [0, 1-dx]])
+        Mab = np.array([[1 - dx, b], [0, 1-dx]], dtype = 'float')
         # Apply the transformation to all vectors at once
-        new_vecs = Mab @ vecs
+        new_vecs = Mab @ vecs1
 
-        # Extract x and y components
         x_comps = new_vecs[0, :]
         y_comps = new_vecs[1, :]
 
         # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
-        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
+        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / np.where(x_comps == 0,np.inf, x_comps) > 0)
 
         valid_x = x_comps[valid_mask]
         valid_y = y_comps[valid_mask]
@@ -1056,16 +1219,15 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     # diagonal
     t0 = time()
     for a in np.arange(0 + dz, 1, dz):
-        Mab = np.array([[a, m1*a + 1/y0 + dx_y], [0, a]])
+        Mab = np.array([[a, m1*a + 1/y0 + dx_y], [0, a]], dtype = 'float')
         # Apply the transformation to all vectors at once
-        new_vecs = Mab @ vecs
+        new_vecs = Mab @ vecs1
 
-        # Extract x and y components
         x_comps = new_vecs[0, :]
         y_comps = new_vecs[1, :]
 
         # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
-        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / x_comps > 0)
+        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / np.where(x_comps == 0,np.inf, x_comps) > 0)
 
         valid_x = x_comps[valid_mask]
         valid_y = y_comps[valid_mask]
@@ -1100,9 +1262,21 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
                 continue
         except:
             winners2.append(winner)
-    possible_vecs1 = np.unique(winners2, axis=0)
-    for item in possible_vecs1:
-        possible_vecs.append(item)
+    # Flatten winners and store as a list of lists
+    flattened_winners = [winner.flatten().tolist() for winner in winners2]
+    
+    # Find unique entries
+    unique_winners = []
+    for item in flattened_winners:
+        if item not in unique_winners:
+            unique_winners.append(item)
+    
+    # Manually assemble each unique winner into a 2D column vector
+    possible_vecs = []
+    for unique_item in unique_winners:
+        # Manually create the column vector
+        vector = np.array([[unique_item[0]], [unique_item[1]]], dtype=object)
+        possible_vecs.append(vector)
 
     global label_dict
     label_dict = {}
@@ -1118,10 +1292,15 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     x, y, t = sym.symbols('x y t')
     Mab = np.array([[x, y], [0, 1/x]])
     horo = np.array([[1, 0], [-t, 1]])
+    possible_vecs_float = [vec.astype(float) for vec in possible_vecs]
 
-    for i in range(len(possible_vecs)):
+    print(possible_vecs)
+    print(possible_vecs_float)
+
+    for i in range(len(possible_vecs_float)):
         # apply Mab matrix, perform horocycle flow and find time t to horizontal
-        a = horo@(Mab@possible_vecs[i])
+        a = horo@(Mab@possible_vecs_float[i])
+        print(a)
         t_dict[i] = lambdify([x, y], solve(a[1][0], t)[0])
 
     # for each point (a,b) in the poincare section, apply the Mab matrix to each vector and look for "winners". Winners have smallest possible slope that is greater than zero and 0 < x-component <= 1
@@ -1131,9 +1310,9 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
             check = 0
             winner_slope = None
             winner = None
-            Mab = np.array([[a, b], [0, 1/a]])
-            for vec in possible_vecs:
-                new = Mab@vec
+            Mab = np.array([[a, b], [0, 1/a]], dtype = 'float')
+            for vec, vec1 in zip(possible_vecs, possible_vecs_float):
+                new = Mab@vec1
                 if float(new[0][0]) == 0:
                     continue
                 x = float(new[0][0])
