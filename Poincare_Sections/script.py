@@ -1,3 +1,4 @@
+from multiprocessing import Pool
 from sage.all import matrix  # testing
 from sage.all import *
 import numpy as np
@@ -21,10 +22,12 @@ from utils import load_arrays_from_file  # testing
 from fractions import Fraction as frac
 import sympy as sym
 from sympy import Symbol
-from sympy import solve, lambdify
+from sympy import solve, lambdify, Eq
 from sympy import Rational, sqrt
 from Library import *
 from Library import Section
+
+t0 = time()
 
 # number of squares for STS
 n_squares = int(sys.argv[1])
@@ -51,8 +54,8 @@ for num in range(10):
         gs = generators(perm, vecs0)
         alphas, Cs, Ss, eigs, Ms, gens, eigenvecs = poincare_details2(perm, vecs0, gs)
         print(alphas)
-    except Exception as e:
-        print(e)
+    except Exception as ex:
+        print(ex)
         continue
     a.append(alphas)
     c.append(Cs)
@@ -103,8 +106,14 @@ for j in range(len(a[0])):
         # make section object that define winning vector and line equations for boundaries of subsections
         sec_list = sec_setup(df, dx_y)
         secs = sec_comp(sec_list, dx)
+        sec_list2, vec_order, vec_dict = sec_setup2(df, dx_y)
+        secs2 = sec_comp2(df, sec_list2, vec_order, vec_dict, dx, dx_y, m1, y0)
+        
         with open(os.path.join("results", f"{n_squares} - {index}", "secs - " + str(j) + ".dill"), 'wb') as f:
             dill.dump(secs, f)
+
+        with open(os.path.join("results", f"{n_squares} - {index}", "secs_integrals - " + str(j) + ".dill"), 'wb') as f:
+            dill.dump(secs2, f)
 
         times = [1]
         if improved:
@@ -125,3 +134,6 @@ for j in range(len(a[0])):
 #         total += item
 #         file.write(str(item) + "\n")
 #     file.write("\n" + str(total))
+
+t1 = time()
+print(f"total time: {t1-t0}")
