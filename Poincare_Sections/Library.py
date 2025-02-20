@@ -17,9 +17,80 @@ from fractions import Fraction as frac
 from sympy import Matrix, Rational
 import sympy as sym
 from sympy import Symbol
-from sympy import solve, lambdify
+from sympy import solve, lambdify, Eq
 from sympy import Rational, sqrt
+import dill
 
+def run_script(vecs0, a, c, e, dx, j, n_squares, index):
+    print(f"id: {os.getpid()}")
+    list_as = []
+    list_cs = []
+    list_es = []
+    for a_, c_, e_ in zip(a, c, e):
+        list_as.append(a_[j])
+        list_cs.append(c_[j])
+        list_es.append(e_[j])
+    
+    # Sort a, c, and e together based on the absolute value of the lower-right entry of c
+    sorted_pairs = sorted(zip(list_as, list_cs, list_es), key=lambda pair: abs(pair[1][1, 1]) + abs(pair[1][1,0]))
+    
+    # Unzip back into separate sorted lists
+    sorted_a, sorted_c, sorted_e = zip(*sorted_pairs)
+    
+    # Convert tuples to lists
+    sorted_a = list(sorted_a)
+    sorted_c = list(sorted_c)
+    sorted_e = list(sorted_e)
+
+    for i in range(len(sorted_a)):
+        # get dimensions of section
+        vecs, x_vals, m0, m1, x0, y0, dx_y, z = setup(
+            sorted_a[i], sorted_c[i], sorted_e[i], vecs0, dx, True)
+        print("i = " + str(i), "j = " + str(j))
+
+        if float(z) <= float(1/50000):
+            print("too small")
+            continue
+
+        # create a dataframe with winning vector at certain points in the section
+        df = winners1(vecs, x_vals, m0, m1, y0, dx, dx_y)
+        # plot poincare section and save
+        try:
+            plot(df, vecs, sorted_c[i], j, n_squares, index, test=False)
+        except Exception as error:
+            print(error)
+            continue
+        df.to_csv(os.path.join(
+            "results", f"{n_squares} - {index}", "df - " + str(j)), index=False)
+
+        # make section object that define winning vector and line equations for boundaries of subsections
+        sec_list = sec_setup(df, dx_y)
+        secs = sec_comp(sec_list, dx)
+        sec_list2, vec_order, vec_dict = sec_setup2(df, dx_y)
+        secs2 = sec_comp2(df, sec_list2, vec_order, vec_dict, dx, dx_y, m1, y0)
+
+        
+        with open(os.path.join("results", f"{n_squares} - {index}", "secs - " + str(j) + ".dill"), 'wb') as f:
+            dill.dump(secs, f)
+
+        with open(os.path.join("results", f"{n_squares} - {index}", "secs_integrals - " + str(j) + ".dill"), 'wb') as f:
+            dill.dump(secs2, f)
+
+        times = time_comp(secs)
+
+        # plot the pdf for each cusp
+        pdf(list(df["time"]), times, dx*2, n_squares, index, j)
+        
+        print(f"section {j} done")
+
+        break
+
+def pool_num(len_alphas):
+    num_cores = os.cpu_count()
+    num_pools = min(int(num_cores*.75), len_alphas)
+    num_loops = len_alphas // num_pools
+    print(f"pools: {num_pools}, loops: {num_loops}")
+    return num_pools, num_loops
 
 def generators(perm, vecs0):
     # find the generators of each cusp of the STS
@@ -925,7 +996,7 @@ def pdf(vals, prob_times, dx, n_squares, index, j, test=False):
         delta = (cdf[i+1] - cdf[i])/dx
         pdf.append(delta)
     fig, ax = plt.subplots(figsize=(10, 10))
-    print(f'length of inputs: {len(times)}, {len(pdf)}')
+    #print(f'length of inputs: {len(times)}, {len(pdf)}')
     ax.scatter(times, pdf, s=0.5)
 
     # plot discontinuities
@@ -1096,7 +1167,9 @@ def covolume(secs):
             y_ = float(secs[i].vec[1][0])
 
             # Perform the double integral
-            def f(y, x): return y_ / (x * (x_ * x + y_ * y))
+            def f(y, x):
+                print(f"x: {x}, x_: {x_}, y: {y}, y_: {y_}")
+                return y_ / (x * (x_ * x + y_ * y))
             result, error = integrate.dblquad(
                 f, lower, upper, lambda x: bottom_eq(x), lambda x: top_eq(x))
             sum += result
@@ -1175,12 +1248,53 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     t1 = time()
     print("top done: " + str(t1 - t0))
 
+    # verticals
+    t0 = time()
+    x_vals_side = np.arange(dx, 1, dx*100)
+    for a in x_vals_side:
+        y_vals = np.arange(m1*a + 1/y0 + dx_y, m0*a + 1/y0 - dx_y, dx_y*2)
+        for b in y_vals:
+            Mab = np.array([[a, b], [0, 1/a]], dtype = 'float')
+            # Apply the transformation to all vectors at once
+            new_vecs = Mab @ vecs1
+    
+            x_comps = new_vecs[0, :]
+            y_comps = new_vecs[1, :]
+    
+            # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
+            valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / np.where(x_comps == 0,np.inf, x_comps) > 0)
+    
+            valid_x = x_comps[valid_mask]
+            valid_y = y_comps[valid_mask]
+            # Apply the mask to filter valid vectors
+            valid_vecs = vecs[:, valid_mask]
+    
+            if valid_x.size == 0:
+                winners.append(None)
+                continue
+    
+            # Calculate slopes
+            slopes = valid_y / valid_x
+    
+            # Find the minimum slope and handle continuity cases
+            min_slope_idx = np.argmin(slopes)
+            winner_slope = slopes[min_slope_idx]
+            winner = valid_vecs[:, min_slope_idx]
+    
+            # Handle continuity by finding the smallest vector if slopes are close
+            for i, slope in enumerate(slopes):
+                if np.abs(slope - winner_slope) <= dx / 1000:
+                    if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
+                        winner = valid_vecs[:, i]
+            winners.append(winner.reshape(2, 1))
+    t1 = time()
+    print("verticals done: " + str(t1 - t0))
+
     # side edge
     t0 = time()
-    y_vals = np.arange(m1 + 1/y0 + dx_y, m0 +
-                       1/y0 - dx_y, dz*(m0-m1))
+    y_vals = np.arange(m1*a + 1/y0 + dx, m0*a + 1/y0 - dx, dx)
     for b in y_vals:
-        Mab = np.array([[1 - dx, b], [0, 1-dx]], dtype = 'float')
+        Mab = np.array([[1-dx, b], [0, 1/(1-dx)]], dtype = 'float')
         # Apply the transformation to all vectors at once
         new_vecs = Mab @ vecs1
 
@@ -1294,13 +1408,13 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     horo = np.array([[1, 0], [-t, 1]])
     possible_vecs_float = [vec.astype(float) for vec in possible_vecs]
 
-    print(possible_vecs)
-    print(possible_vecs_float)
+    #print(possible_vecs)
+    #print(possible_vecs_float)
 
     for i in range(len(possible_vecs_float)):
         # apply Mab matrix, perform horocycle flow and find time t to horizontal
         a = horo@(Mab@possible_vecs_float[i])
-        print(a)
+        #print(a)
         t_dict[i] = lambdify([x, y], solve(a[1][0], t)[0])
 
     # for each point (a,b) in the poincare section, apply the Mab matrix to each vector and look for "winners". Winners have smallest possible slope that is greater than zero and 0 < x-component <= 1
@@ -1352,6 +1466,136 @@ def winners1(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     df = pd.DataFrame.from_dict(saddle_dict)
     return df
 
+
+def sec_setup2(df, dx_y):
+    sec_list = []
+    global labs
+    labs = df["lab"].unique()
+    vec_order = []
+    vec_dict = {}
+    #print(labs)
+    for lab in labs:
+        sec_dict = {}
+        df1 = df[df["lab"] == lab]
+        vec_order.append(df1['vec'].iloc[int(0)])
+        vec_dict[lab] = df1['vec'].iloc[int(0)]
+        xs = df1["x"]
+        xs = sorted(list(set(xs.tolist())))
+        y_tops = []
+        y_bottoms = []
+        for x in xs:
+            # for a given "x" find the max and minimum y-values
+            y_top = max(df1[df1["x"] == x]["y"])
+            y_bottom = min(df1[df1["x"] == x]["y"])
+            # ensures the section is convex, not concave
+            if len(df1[df1["x"] == x]["y"]) < (y_top - y_bottom)/dx_y:
+                print("len: " + str(len(df1[df1["x"] == x]["y"])))
+                print("ytop: " + str(y_top))
+                print("ybottom: " + str(y_bottom))
+                print("dx_y: " + str(dx_y))
+                print(x)
+                print(df1[df1["x"] == x]["y"])
+                raise ValueError(
+                    "Section has more than 2 points for a given 'x'")
+            y_tops.append(y_top)
+            y_bottoms.append(y_bottom)
+        y_tops = np.array(y_tops)
+        y_bottoms = np.array(y_bottoms)
+        xs = np.array(xs)
+        sec_dict['x'] = xs
+        sec_dict['top'] = y_tops
+        sec_dict['bottom'] = y_bottoms
+        sec_list.append(sec_dict)
+    return sec_list, vec_order, vec_dict
+
+
+def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
+    from fractions import Fraction as frac
+    x = Symbol('x')
+    
+    secs = []
+    problem_xs = []
+    for i in range(len(sec_list)):
+        xs = sec_list[i]['x']
+        problem_xs.append(xs[0])
+    problem_xs = sorted(list(set(problem_xs)))
+    #print(problem_xs)
+    problems = [problem_xs[0]]
+    for i in range(len(problem_xs) - 1):
+        if abs(problem_xs[i] - problem_xs[i+1]) <= 0.01:
+            continue
+        problems.append(problem_xs[i+1])
+    problems.append(1)
+    #print(problems)
+    prob_mids = []
+    for i in range(len(problems) - 1):
+        prob_mids.append((problems[i] + problems[i+1])/2)
+    i = 0
+    use_points = []
+    for item in np.arange(dx, 1, dx):
+        if item < prob_mids[i]:
+            continue
+        i += 1
+        use_points.append(item)
+        if i == len(prob_mids):
+            break
+    #print(use_points)
+        
+    for i in range(len(sec_list)):
+        xs = sec_list[i]['x']
+        top = sec_list[i]['top']
+        bottom = sec_list[i]['bottom']
+        sec = Section(x, top, bottom)
+        sec.vec = vec_order[int(i)]
+
+        bottom_lab_list = []
+        for x_, y_ in zip(xs, bottom):
+            if x_ not in use_points:
+                continue
+            poss_ys = sorted(list(df[(df["x"] == x_)]["y"]), reverse = True)
+            y_index = poss_ys.index(y_)
+        
+            # Check if index + 1 is valid
+            if y_index + 1 < len(poss_ys):
+                # Get the value at index + 1
+                next_y = poss_ys[y_index + 1]
+                filtered_df = df[(df["x"] == x_) & (df["y"] == next_y)]
+                lab_value = filtered_df["lab"].iloc[0]  # Get the value in the "lab" column of the first row
+                if lab_value not in bottom_lab_list:
+                    bottom_lab_list.append(lab_value)
+            else:
+                if -1 not in bottom_lab_list:
+                    bottom_lab_list.append(int(-1))
+
+        eqs = []
+        #print(bottom_lab_list)
+        for lab in bottom_lab_list:
+            if lab != -1:
+                vec = vec_dict[lab]
+                eqs.append(-frac(vec[0][0],vec[1][0]) * x + frac(int(1)/vec[1][0]))
+            else:
+                eqs.append(frac(m1) * x + frac(int(1)/y0))
+
+        points = [xs[0]]
+        for i in range(len(eqs) - 1):
+            eq1 = eqs[i]
+            eq2 = eqs[i + 1]
+            # Set eq1 = eq2 and solve for x
+            intersection_x = solve(Eq(eq1, eq2), x)
+            if intersection_x:  # If there is a solution
+                points.append(intersection_x[0])
+
+        sec.top.append(-frac(sec.vec[0][0], sec.vec[1][0]) * x + frac(int(1)/sec.vec[1][0]))
+        sec.f_top.append(lambdify([x], sec.top[0]))
+        sec.points_top = [points[0], points[-1]]
+        
+        for eq in eqs:
+            sec.bottom.append(eq)
+            sec.f_bottom.append(lambdify([x], eq))
+            sec.points_bottom = points
+            
+        secs.append(sec)
+    return secs
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~ Tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
