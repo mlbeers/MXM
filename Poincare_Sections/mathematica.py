@@ -94,13 +94,12 @@ def run_integrals(n_squares, index, a, perm):
     totalVol = M('totalVol = 0')
     
     for j in range(len(a[0])):
-        df = read_df(n_squares, index, j)
         print(f"section {j}")
     
         with open(os.path.join("results", f"{n_squares} - {index}", f"secs_integrals - {j}.dill"), 'rb') as f:
             secs2 = dill.load(f)  
     
-        sections = get_secs(secs2)
+        subsections = format_subsections_for_mathematica(secs2)
     
         # Create directory for storing LaTeX outputs
         results_dir = os.path.join("results", f"{n_squares} - {index}", f"cusp - {j}")
@@ -116,18 +115,18 @@ def run_integrals(n_squares, index, a, perm):
             latex_file.write("\\usepackage{amsmath}\n")
             latex_file.write("\\begin{document}\n\n")
     
-            for i, section in enumerate(sections):
-                print(section)
-                if len(section) == 5:
-                    x0, y0, top, bottom1, left = section
+            for i, subsection in enumerate(subsections):
+                print(subsection)
+                if len(subsection) == 5:
+                    x0, y0, top, bottom1, left = subsection
                     bottoms = [bottom1]
                     points = []
-                elif len(section) == 7:
-                    x0, y0, top, bottom1, bottom2, point1, left = section
+                elif len(subsection) == 7:
+                    x0, y0, top, bottom1, bottom2, point1, left = subsection
                     bottoms = [bottom1, bottom2]
                     points = [point1]
-                elif len(section) == 9:
-                    x0, y0, top, bottom1, bottom2, bottom3, point1, point2, left = section
+                elif len(subsection) == 9:
+                    x0, y0, top, bottom1, bottom2, bottom3, point1, point2, left = subsection
                     bottoms = [bottom1, bottom2, bottom3]
                     points = [point1, point2]
     
@@ -135,14 +134,17 @@ def run_integrals(n_squares, index, a, perm):
     
                 # Convert equation to LaTeX format
                 expression_string = repr(eqs[1])
+                # converting from Mathematica to sympy notation
                 es, cs = parse_piecewise_sp(expression_string)
                 print(f"cs orig: {cs}")
                 for c in cs:
                     for c_ in c:
                         boundary_points.add(c_)
-    
+
+                # creating peicewsie function to be saved as a dill file, the true equation
                 eq_tuples = []
                 for eq, cond in zip(es, cs):
+                    # converting from Mathematica to sympy notation
                     cleaned_eq = (parse_expr(eq, local_dict={'t': t, 'sp': sp}), sp.And(sp.simplify(cond[0]) <= t, t < sp.simplify(cond[1])))
                     eq_tuples.append(cleaned_eq)
     
@@ -150,6 +152,7 @@ def run_integrals(n_squares, index, a, perm):
                 with open(os.path.join(results_dir, f"equation_{i}.dill"), 'wb') as file:
                     dill.dump(f, file)
 
+                # creating piecewise function for graphing, accounting for cutting off a bound of Infinity
                 eq_tuples = []
                 if cs[-1][1] == "Infinity":
                     cs[-1][1] = max(int(float(frac(cs[-1][0])) + 10), 20)
@@ -198,10 +201,14 @@ def run_integrals(n_squares, index, a, perm):
             print(f"Error: Failed to compile {j} into a PDF.")
 
     # Open the file in write mode
+    # symbolic version
     totalVol = M('totalVol = FullSimplify[totalVol]')
+    # numeric version
     totalVol2 = M('totalVolN = N[totalVol]')
 
+    # expected coVolume
     veech_index = int(re.findall(r'index (\d+)', str(perm.veech_group()))[0])
+    # numeric
     target = M(f'target = N[(Pi^2/6)*{veech_index}]')
     save_path = os.path.join("results", f"{n_squares} - {index}", "coVolume.txt")
     with open(save_path, "w") as file:
@@ -211,10 +218,10 @@ def run_integrals(n_squares, index, a, perm):
     boundary_points = [sp.Symbol("Infinity") if bp == "Infinity" else sp.simplify(bp) for bp in boundary_points]
     sorted_numbers = sorted(boundary_points, key=lambda x: float(x) if x != sp.Symbol("Infinity") else float('inf'))
 
-    with open(os.path.join("results", f"{n_squares} - {index}", piecewise_list.dill"), 'wb') as f:
+    with open(os.path.join("results", f"{n_squares} - {index}", "piecewise_list.dill"), 'wb') as f:
         dill.dump(list_functions, f)
 
-    with open(os.path.join("results", f"{n_squares} - {index}", boundary_points.dill"), 'wb') as f:
+    with open(os.path.join("results", f"{n_squares} - {index}", "boundary_points.dill"), 'wb') as f:
         dill.dump(sorted_numbers, f)
     
     return list_functions, sorted_numbers
@@ -263,20 +270,22 @@ def create_combined_piecewise(piecewise_list, boundary_points):
     # Create the final combined Piecewise function
     return Piecewise(*combined_piecewise), Piecewise(*combined_scaled_piecewise)
 
-def get_secs(secs):
+# sets up a list of strings to feed into mathematica for information on the subsection with the following info:
+# input is a poincare section, output is a list of string representations for each subsection
+def format_subsections_for_mathematica(section):
     outputs = []
-    for sec in secs:
+    for subsection in section:
         output = []
-        output.append("x0 = " + str(sec.vec[0][0]))
-        output.append("y0 = " + str(sec.vec[1][0]))
-        output.append("top = " + str(sec.top[0]))
-        for i in range(len(sec.bottom)):
-            output.append("bottom" + str(i+1) + " = " + str(sec.bottom[i]))
-        for i in range(len(sec.points_bottom)):
+        output.append("x0 = " + str(subsection.vec[0][0]))
+        output.append("y0 = " + str(subsection.vec[1][0]))
+        output.append("top = " + str(subsection.top[0]))
+        for i in range(len(subsection.bottom)):
+            output.append("bottom" + str(i+1) + " = " + str(subsection.bottom[i]))
+        for i in range(len(subsection.points_bottom)):
             if i == 0:
                 continue
-            output.append("point" + str(i) + " = " + str(sec.points_bottom[i]))
-        output.append("left = " + str(simplify(sec.points_bottom[0], 20)))
+            output.append("point" + str(i) + " = " + str(subsection.points_bottom[i]))
+        output.append("left = " + str(simplify(subsection.points_bottom[0], 20)))
         outputs.append(output)
     return outputs
 
@@ -373,6 +382,8 @@ def simplify(m, den):
         
     return  m1
 
+# this code is not used but a clearer reference for a smple of what the integrals function computes.
+# this is for subsections with only 1 bottom equation so work to decide certain things about the section is not included
 def nb_1(x0, y0, top, bottom1, left):
     M('ClearAll["Global`*"]')
     x0 = M(f'x0 = {x0}')
@@ -458,7 +469,7 @@ def nb_1(x0, y0, top, bottom1, left):
     return eqs
 
 def parse_piecewise_sp(expression_string):
-    # Convert Mathematica syntax to Python syntax
+    # Convert Mathematica syntax to Python syntax for sympy
     expression_string = expression_string.replace('Log', 'sp.log').replace('Sqrt', 'sp.sqrt')
     expression_string = expression_string.replace("ArcTanh", "sp.atanh").replace("ArcCosh", "sp.acosh").replace("ArcSinh", "sp.asinh")
     expression_string = expression_string.replace("ArcCoth", "sp.acoth").replace("ArcSech", "sp.asech").replace("ArcCosecanth", "sp.acsch")
