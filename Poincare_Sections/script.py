@@ -1,3 +1,6 @@
+from multiprocessing import Pool
+from sage.all import matrix  # testing
+from sage.all import *
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
@@ -6,22 +9,25 @@ import os
 import pwlf
 import os
 from surface_dynamics.all import *
-from Library import *
-from Library import Section
 import math
 from time import time
 import copy
 from scipy import integrate
-import sympy as sym
-from sympy import Symbol
-from sympy import solve, lambdify
 import traceback
 import dill
 import sys
 import unittest
 from surface_dynamics.all import Origami
 from utils import load_arrays_from_file  # testing
-from sage.all import matrix  # testing
+from fractions import Fraction as frac
+import sympy as sym
+from sympy import Symbol
+from sympy import solve, lambdify, Eq
+from sympy import Rational, sqrt
+from Library import *
+from Library import Section
+
+t0 = time()
 
 # number of squares for STS
 n_squares = int(sys.argv[1])
@@ -43,11 +49,13 @@ a = []
 c = []
 e = []
 g = []
-for num in range(50):
+for num in range(10):
     try:
         gs = generators(perm, vecs0)
-        alphas, Cs, C_invs, eigs, Ms, gens, eigenvecs = poincare_details1(perm, vecs0, gs)
-    except:
+        alphas, Cs, Ss, eigs, Ms, gens, eigenvecs = poincare_details2(perm, vecs0, gs)
+        print(alphas)
+    except Exception as ex:
+        print(ex)
         continue
     a.append(alphas)
     c.append(Cs)
@@ -76,7 +84,6 @@ for j in range(len(a[0])):
         # get dimensions of section
         vecs, x_vals, m0, m1, x0, y0, dx_y, z = setup(
             a[i][j], c[i][j], e[i][j], vecs0, dx, improved)
-        #print(z)
         print("i = " + str(i), "j = " + str(j))
 
         if float(z) <= float(1/50000):
@@ -85,12 +92,13 @@ for j in range(len(a[0])):
 
         # create a dataframe with winning vector at certain points in the section
         df = winners1(vecs, x_vals, m0, m1, y0, dx, dx_y)
-
+        print(plot)
         # plot poincare section and save
         try:
             plot(df, vecs, c[i][j], j, n_squares, index, test=False)
         except Exception as error:
             print(error)
+            raise error
             continue
         df.to_csv(os.path.join(
             "results", f"{n_squares} - {index}", "df - " + str(j)), index=False)
@@ -98,8 +106,14 @@ for j in range(len(a[0])):
         # make section object that define winning vector and line equations for boundaries of subsections
         sec_list = sec_setup(df, dx_y)
         secs = sec_comp(sec_list, dx)
+        sec_list2, vec_order, vec_dict = sec_setup2(df, dx_y)
+        secs2 = sec_comp2(df, sec_list2, vec_order, vec_dict, dx, dx_y, m1, y0)
+        
         with open(os.path.join("results", f"{n_squares} - {index}", "secs - " + str(j) + ".dill"), 'wb') as f:
             dill.dump(secs, f)
+
+        with open(os.path.join("results", f"{n_squares} - {index}", "secs_integrals - " + str(j) + ".dill"), 'wb') as f:
+            dill.dump(secs2, f)
 
         times = [1]
         if improved:
@@ -109,14 +123,17 @@ for j in range(len(a[0])):
         pdf(list(df["time"]), times, dx*2, n_squares, index, j)
 
         # get covolume calculations
-        covolume_list.append(covolume(secs))
+        #covolume_list.append(covolume(secs))
         print("section done")
 
         break
 
-with open(os.path.join("results", f"{n_squares} - {index}", "covolume.txt"), "w") as file:
-    total = 0
-    for item in covolume_list:
-        total += item
-        file.write(str(item) + "\n")
-    file.write("\n" + str(total))
+# with open(os.path.join("results", f"{n_squares} - {index}", "covolume.txt"), "w") as file:
+#     total = 0
+#     for item in covolume_list:
+#         total += item
+#         file.write(str(item) + "\n")
+#     file.write("\n" + str(total))
+
+t1 = time()
+print(f"total time: {t1-t0}")
