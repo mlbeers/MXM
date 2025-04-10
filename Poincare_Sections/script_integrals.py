@@ -44,22 +44,21 @@ index = int(sys.argv[2])
 perm = perms_list(n_squares)[index]
 dx = 0.0005
 
-vec_file = "vecs" + str(n_squares) + "-" + str(index) + ".npy"
-vecs0 = load_arrays_from_file(os.path.join("vecs", vec_file))
-
+# get the alphas
 with open(os.path.join("results", f"{n_squares} - {index}", "setup.dill"), 'rb') as f:
     loaded_data = dill.load(f)
-a,c,e,g = loaded_data
+a,_,_,_ = loaded_data
 
-list_integrals, boundary_points = run_integrals(n_squares, index, a, perm)
+list_piecewise, boundary_points = run_integrals(n_squares, index, a, perm)
 
 # Create the combined Piecewise function
-combined_pw, combined_scaled_pw = create_combined_piecewise(list_integrals, boundary_points)
+combined_pw, combined_scaled_pw = create_combined_piecewise(list_piecewise, boundary_points)
 
 # Print the result
 latex_expr = sp.latex(combined_pw)
 latex_expr = latex_expr.replace(r"\text{for}\: t", "").replace(r"\geq", "").replace(r"\wedge", r"\leq")
 
+# create boundary pairs for graphing - replace infinity with the previous condition + 10
 interval_list = [[boundary_points[i], boundary_points[i + 1]] for i in range(len(boundary_points) - 1)]
 interval_list[-1][1] = interval_list[-1][0] + 10
 
@@ -77,7 +76,7 @@ with open(os.path.join(final_dir, f"final_scaled_eq.dill"), 'wb') as file:
 latex_file_path = os.path.join(final_dir, f"final_eq.tex")
 pdf_file_path = os.path.join(final_dir, f"final_eq.pdf")
 
-    # Write LaTeX file
+# Write LaTeX file
 with open(latex_file_path, "w") as latex_file:
     
     latex_file.write("\\documentclass{article}\n")
@@ -87,7 +86,7 @@ with open(latex_file_path, "w") as latex_file:
     latex_file.write(f"Equation:\n\\[\n{latex_expr}\n\\]\n\n")
     latex_file.write("\\end{document}\n")
 
-# Compile LaTeX file
+# Compile LaTeX file and delete intermediate files
 try:
     with open(os.devnull, "w") as FNULL:
         subprocess.run(

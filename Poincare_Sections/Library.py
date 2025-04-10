@@ -91,7 +91,7 @@ def run_script(vecs0, a, c, e, dx, j, n_squares, index):
 
 def pool_num(len_alphas):
     num_cores = os.cpu_count()
-    num_pools = min(int(num_cores*.75), len_alphas)
+    num_pools = min(int(num_cores*.5), len_alphas)
     num_loops = len_alphas // num_pools
     print(f"pools: {num_pools}, loops: {num_loops}")
     return num_pools, num_loops
