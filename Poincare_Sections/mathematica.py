@@ -222,6 +222,9 @@ def run_integrals(n_squares, index, a, perm):
 def create_combined_piecewise(piecewise_list, boundary_points):
     combined_piecewise = []
     combined_scaled_piecewise = []
+    # variable that keeps tracks of how many times theres a non-zero function 
+    # contributing to the interval starting at 1, (usually the interval [1,2]). 
+    # Used to scale the final pdf to compare across other shapes
     count = 0
 
     for i in range(len(boundary_points) - 1):
@@ -238,32 +241,24 @@ def create_combined_piecewise(piecewise_list, boundary_points):
         active_equations = []
         for pw in piecewise_list:
             for expr, cond in pw.args:
+                # convert Mathematica representation of infinity to sympys version for later computations
                 if cond.args[1] == sp.StrictGreaterThan(sp.Symbol("Infinity"), t):
-                    #print(cond)
                     cond = sp.And(cond.args[0], sp.StrictLessThan(t, sp.oo))
-                    #print(cond)
-                if isinstance(cond, And):
-                    # Check if the interval is fully contained within the condition
-                    if sp.simplify(And(interval_condition, cond)) == interval_condition:
-                        if lower_bound == 1 and expr != 0:
-                            print(expr)
-                            count += 1
-                        active_equations.append(expr)
-                elif isinstance(cond, Relational):
-                    print("yup")
-                    # Check if the interval is fully contained within the condition
-                    if sp.simplify(And(interval_condition, cond)) == interval_condition:
-                        active_equations.append(expr)
+                
+                # Check if the interval is fully contained within the condition
+                if sp.simplify(And(interval_condition, cond)) == interval_condition:
+                    if lower_bound == 1 and expr != 0:
+                        count += 1
+                    active_equations.append(expr)      
 
         # Add the active equations together
-        print(f"count: {count}")
-        if active_equations:
-            combined_expression = Add(*active_equations)
-            combined_piecewise.append((combined_expression, interval_condition))
-            if count == 0:
-                combined_scaled_piecewise.append((combined_expression, interval_condition))
-            else:
-                combined_scaled_piecewise.append((combined_expression/count, interval_condition))
+        combined_expression = Add(*active_equations)
+        combined_piecewise.append((combined_expression, interval_condition))
+        # ignore interval from [0,1] so there is no division by zero error
+        if count == 0:
+            combined_scaled_piecewise.append((combined_expression, interval_condition))
+        else:
+            combined_scaled_piecewise.append((combined_expression/count, interval_condition))
 
     # Create the final combined Piecewise function
     return Piecewise(*combined_piecewise), Piecewise(*combined_scaled_piecewise)

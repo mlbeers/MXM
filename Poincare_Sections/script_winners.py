@@ -71,15 +71,15 @@ data = [a, c, e, g]
 with open(os.path.join("results", f"{n_squares} - {index}", "setup.dill"), 'wb') as f:
     dill.dump(data, f)
 
-covolume_list = []
-
+# get the number of cores to be used in computations and the number of loops needed to complete each cusp
 num_pools, num_loops = pool_num(len(a[0]))
 
 args = [(vecs0, a, c, e, dx, j, n_squares, index) for j in range(len(a[0]))]
 
+# parallelize the run_script function
 for i in range(num_loops):
     if i == num_loops - 1:  # Last batch might have fewer tasks
-        with Pool(len(args[i * num_pools:])) as p:  # Fix: Corrected closing `)`
+        with Pool(len(args[i * num_pools:])) as p:
             p.starmap(run_script, args[i * num_pools:])
     else:
         with Pool(num_pools) as p:
