@@ -33,6 +33,8 @@ n_squares = int(sys.argv[1])
 # index to start at
 index = int(sys.argv[2])
 
+dx = float(sys.argv[3])
+
 os.makedirs(os.path.join("results", f"{n_squares} - {index}"), exist_ok=True)  # Ensure directory exists
 
 permutations = perms_list(n_squares)
@@ -69,7 +71,6 @@ data = [a, c, e, g]
 with open(os.path.join("results", f"{n_squares} - {index}", "setup.dill"), 'wb') as f:
     dill.dump(data, f)
 
-dx = 0.0005
 covolume_list = []
 
 num_pools, num_loops = pool_num(len(a[0]))

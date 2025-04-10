@@ -21,6 +21,8 @@ from surface_dynamics.all import Origami
 from utils import load_arrays_from_file  # testing
 import re
 from sage.all import *
+from surface_dynamics.all import Origami
+from surface_dynamics.all import *
 import numpy as np
 from fractions import Fraction as frac
 M = mathematica
@@ -38,6 +40,8 @@ t0 = time()
 n_squares = int(sys.argv[1])
 # index to start at
 index = int(sys.argv[2])
+
+perm = perms_list(n_squares)[index]
 dx = 0.0005
 
 vec_file = "vecs" + str(n_squares) + "-" + str(index) + ".npy"
@@ -47,30 +51,38 @@ with open(os.path.join("results", f"{n_squares} - {index}", "setup.dill"), 'rb')
     loaded_data = dill.load(f)
 a,c,e,g = loaded_data
 
-list_integrals, boundary_points = run_integrals(n_squares, index, a)
+list_integrals, boundary_points = run_integrals(n_squares, index, a, perm)
 
 # Create the combined Piecewise function
-combined_pw = create_combined_piecewise(list_integrals, boundary_points)
+combined_pw, combined_scaled_pw = create_combined_piecewise(list_integrals, boundary_points)
 
 # Print the result
-print("Combined Piecewise Function:")
 latex_expr = sp.latex(combined_pw)
 latex_expr = latex_expr.replace(r"\text{for}\: t", "").replace(r"\geq", "").replace(r"\wedge", r"\leq")
 
 interval_list = [[boundary_points[i], boundary_points[i + 1]] for i in range(len(boundary_points) - 1)]
+interval_list[-1][1] = interval_list[-1][0] + 10
 
 graph_piece(combined_pw, interval_list, n_squares, index, -1, 50)
 
 final_dir = os.path.join("results", f"{n_squares} - {index}")
 os.makedirs(final_dir, exist_ok=True)  # Ensure directory exists
 
+with open(os.path.join(final_dir, f"final_eq.dill"), 'wb') as file:
+    dill.dump(combined_pw, file)
+
+with open(os.path.join(final_dir, f"final_scaled_eq.dill"), 'wb') as file:
+    dill.dump(combined_scaled_pw, file)
+
 latex_file_path = os.path.join(final_dir, f"final_eq.tex")
 pdf_file_path = os.path.join(final_dir, f"final_eq.pdf")
 
     # Write LaTeX file
 with open(latex_file_path, "w") as latex_file:
+    
     latex_file.write("\\documentclass{article}\n")
     latex_file.write("\\usepackage{amsmath}\n")
+    latex_file.write("\\usepackage[paperheight=11in,paperwidth=60in]{geometry}\n")
     latex_file.write("\\begin{document}\n\n")
     latex_file.write(f"Equation:\n\\[\n{latex_expr}\n\\]\n\n")
     latex_file.write("\\end{document}\n")

@@ -21,6 +21,10 @@ from sympy import solve, lambdify, Eq
 from sympy import Rational, sqrt
 import dill
 
+# run_script - brief description
+# inputs:
+# vecs0 - array of ... numpy
+# a - the alpha value... 
 def run_script(vecs0, a, c, e, dx, j, n_squares, index):
     print(f"id: {os.getpid()}")
     list_as = []
@@ -61,7 +65,7 @@ def run_script(vecs0, a, c, e, dx, j, n_squares, index):
             print(error)
             continue
         df.to_csv(os.path.join(
-            "results", f"{n_squares} - {index}", "df - " + str(j)), index=False)
+            "results", f"{n_squares} - {index}", f"df - {j}.csv"), index=False)
 
         # make section object that define winning vector and line equations for boundaries of subsections
         sec_list = sec_setup(df, dx_y)

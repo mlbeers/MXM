@@ -22,6 +22,8 @@ from utils import load_arrays_from_file  # testing
 import re
 import subprocess
 from sage.all import *
+from surface_dynamics.all import Origami
+from surface_dynamics.all import *
 import numpy as np
 from fractions import Fraction as frac
 M = mathematica
@@ -32,9 +34,59 @@ from sympy import symbols, And, Piecewise, Add, N
 from sympy.core.relational import Relational
 from integration_functions import *
 
+# Code from Sunrose
+# Gives non-visibility tori for testing
+D = OrigamiDatabase()
+q = D.query()
+qlist = q.list()
+
+
+def unit_hor_saddle(O):
+    count = 0
+    for vert in O.vertices():
+        tup = vert.up_right_tuple()
+        for i in tup:
+            for vert2 in O.vertices():
+                tup2 = vert2.up_right_tuple()
+                if O.r()(i) in tup2:
+                    return True
+    return False
+
+
+def is_unobstructed(O):
+    cusp_reps = O.teichmueller_curve().cusp_representatives()
+    for item in cusp_reps:
+        if not unit_hor_saddle(item[0]):
+            return False
+    return True
+
+
+def obstructed(n, **kwargs):
+    obstructed = []
+    count_obstructed = 0
+    p = D.query(nb_squares=n, **kwargs)
+    for item in p:
+        if not is_unobstructed(item):
+            obstructed.append(item)
+            count_obstructed += item.teichmueller_curve().orbit_graph().num_verts()
+    return (obstructed, count_obstructed)
+
+# list of permutations
+
+
+def perms_list(n, **kwargs):
+    obstructed = []
+    p = D.query(nb_squares=n, **kwargs)
+    for item in p:
+        if not is_unobstructed(item):
+            obstructed.append(item)
+            for perm in item.teichmueller_curve():
+                obstructed.append(perm)
+    return obstructed
+
 t = sp.Symbol('t')
 
-def run_integrals(n_squares, index, a):
+def run_integrals(n_squares, index, a, perm):
     boundary_points = set()
     list_functions = []
     M('ClearAll["Global`*"]')
@@ -55,8 +107,8 @@ def run_integrals(n_squares, index, a):
         os.makedirs(results_dir, exist_ok=True)
     
         # LaTeX file path
-        latex_file_path = os.path.join(results_dir, f"equations_{j}.tex")
-        pdf_file_path = os.path.join(results_dir, f"equations_{j}.pdf")
+        latex_file_path = os.path.join(results_dir, f"equations.tex")
+        pdf_file_path = os.path.join(results_dir, f"equations.pdf")
     
         with open(latex_file_path, "w") as latex_file:
             # Start LaTeX document
@@ -84,18 +136,33 @@ def run_integrals(n_squares, index, a):
                 # Convert equation to LaTeX format
                 expression_string = repr(eqs[1])
                 es, cs = parse_piecewise_sp(expression_string)
+                print(f"cs orig: {cs}")
                 for c in cs:
                     for c_ in c:
                         boundary_points.add(c_)
     
                 eq_tuples = []
                 for eq, cond in zip(es, cs):
-                    eq_tuples.append((
-                        parse_expr(eq, local_dict={'t': t, 'sp': sp}),
-                        sp.And(sp.simplify(cond[0]) <= t, t < sp.simplify(cond[1]))
-                    ))
+                    cleaned_eq = (parse_expr(eq, local_dict={'t': t, 'sp': sp}), sp.And(sp.simplify(cond[0]) <= t, t < sp.simplify(cond[1])))
+                    eq_tuples.append(cleaned_eq)
     
                 f = sp.Piecewise(*eq_tuples)
+                with open(os.path.join(results_dir, f"equation_{i}.dill"), 'wb') as file:
+                    dill.dump(f, file)
+
+                eq_tuples = []
+                if cs[-1][1] == "Infinity":
+                    cs[-1][1] = max(int(float(frac(cs[-1][0])) + 10), 20)
+                    print(f"cs for graph: {cs}")
+                    for eq, cond in zip(es, cs):
+                        eq_tuples.append((
+                            parse_expr(eq, local_dict={'t': t, 'sp': sp}),
+                            sp.And(sp.simplify(cond[0]) <= t, t < sp.simplify(cond[1]))
+                        ))
+                    f_graph = sp.Piecewise(*eq_tuples)
+                else:
+                    f_graph = f
+                
                 list_functions.append(f)
                 latex_expr = sp.latex(f)
                 latex_expr = latex_expr.replace(r"\text{for}\: t", "").replace(r"\geq", "").replace(r"\wedge", r"\leq")
@@ -104,7 +171,7 @@ def run_integrals(n_squares, index, a):
                 latex_file.write(f"Equation {i}:\n\\[\n{latex_expr}\n\\]\n\n")
     
                 # Generate graph for visualization
-                graph_piece(f, cs, n_squares, index, j, i)
+                graph_piece(f_graph, cs, n_squares, index, j, i)
     
             # End LaTeX document
             latex_file.write("\n\\end{document}\n")
@@ -123,7 +190,7 @@ def run_integrals(n_squares, index, a):
     
             # Remove auxiliary files (.log, .aux)
             for ext in [".log", ".aux"]:
-                aux_file = os.path.join(results_dir, f"equations_{j}{ext}")
+                aux_file = os.path.join(results_dir, f"equations{ext}")
                 if os.path.exists(aux_file):
                     os.remove(aux_file)
     
@@ -133,32 +200,54 @@ def run_integrals(n_squares, index, a):
     # Open the file in write mode
     totalVol = M('totalVol = FullSimplify[totalVol]')
     totalVol2 = M('totalVolN = N[totalVol]')
-    target = M('target = N[(Pi^2/6)*54]')
+
+    veech_index = int(re.findall(r'index (\d+)', str(perm.veech_group()))[0])
+    target = M(f'target = N[(Pi^2/6)*{veech_index}]')
     save_path = os.path.join("results", f"{n_squares} - {index}", "coVolume.txt")
     with open(save_path, "w") as file:
         file.write(f"{totalVol}\n\n\n")
         file.write(f"rounded coVol: {totalVol2}\n")
         file.write(f"rounded target: {target}\n")
-    boundary_points = sorted([sp.simplify(bp) for bp in boundary_points])
-    return list_functions, boundary_points
+    boundary_points = [sp.Symbol("Infinity") if bp == "Infinity" else sp.simplify(bp) for bp in boundary_points]
+    sorted_numbers = sorted(boundary_points, key=lambda x: float(x) if x != sp.Symbol("Infinity") else float('inf'))
+
+    with open(os.path.join("results", f"{n_squares} - {index}", piecewise_list.dill"), 'wb') as f:
+        dill.dump(list_functions, f)
+
+    with open(os.path.join("results", f"{n_squares} - {index}", boundary_points.dill"), 'wb') as f:
+        dill.dump(sorted_numbers, f)
+    
+    return list_functions, sorted_numbers
 
 def create_combined_piecewise(piecewise_list, boundary_points):
     combined_piecewise = []
+    combined_scaled_piecewise = []
+    count = 0
 
     for i in range(len(boundary_points) - 1):
         lower_bound = boundary_points[i]
         upper_bound = boundary_points[i + 1]
+        print(lower_bound, upper_bound)
 
         # Create the condition for the current interval
         interval_condition = (t >= lower_bound) & (t < upper_bound)
-
+        if upper_bound == sp.Symbol("Infinity"):
+            interval_condition = (t >= lower_bound) & (t < sp.oo)
+        
         # Find all equations active in this interval
         active_equations = []
         for pw in piecewise_list:
             for expr, cond in pw.args:
+                if cond.args[1] == sp.StrictGreaterThan(sp.Symbol("Infinity"), t):
+                    #print(cond)
+                    cond = sp.And(cond.args[0], sp.StrictLessThan(t, sp.oo))
+                    #print(cond)
                 if isinstance(cond, And):
                     # Check if the interval is fully contained within the condition
                     if sp.simplify(And(interval_condition, cond)) == interval_condition:
+                        if lower_bound == 1 and expr != 0:
+                            print(expr)
+                            count += 1
                         active_equations.append(expr)
                 elif isinstance(cond, Relational):
                     print("yup")
@@ -167,12 +256,17 @@ def create_combined_piecewise(piecewise_list, boundary_points):
                         active_equations.append(expr)
 
         # Add the active equations together
+        print(f"count: {count}")
         if active_equations:
             combined_expression = Add(*active_equations)
             combined_piecewise.append((combined_expression, interval_condition))
+            if count == 0:
+                combined_scaled_piecewise.append((combined_expression, interval_condition))
+            else:
+                combined_scaled_piecewise.append((combined_expression/count, interval_condition))
 
     # Create the final combined Piecewise function
-    return Piecewise(*combined_piecewise)
+    return Piecewise(*combined_piecewise), Piecewise(*combined_scaled_piecewise)
 
 def get_secs(secs):
     outputs = []
@@ -392,9 +486,9 @@ def parse_piecewise_sp(expression_string):
         expressions.append(expr)
     expressions[0] = '0'
 
-    if float(frac(conditions[-1][1])) < 20:
-        conditions.append([conditions[-1][1], 20])
-        expressions.append("0")
+    # if float(frac(conditions[-1][1])) < 20:
+    #     conditions.append([conditions[-1][1], 20])
+    #     expressions.append("0")
     
     return expressions, conditions
 
@@ -407,8 +501,9 @@ def graph_piece(f, cs, n_squares, index, j, i):
     np.seterr(divide='ignore', invalid='ignore')
     
     # Generate values for plotting using `f.subs()`
-    t_vals = np.linspace(0, 20, 1000)  # Define t from 0 to 20
-    
+    t_vals = np.linspace(0, float(frac(cs[-1][1])), 1000)  # Define t from 0 to 20
+
+    #print(f)
     # Evaluate function at each point using `.subs()`
     y_vals = np.array([f.subs(t, val).evalf() for val in t_vals])  # Convert to numeric
     
@@ -417,7 +512,7 @@ def graph_piece(f, cs, n_squares, index, j, i):
     
     # Compute transition points
     non_diff_set = set()
-    for c in cs:
+    for c in cs[:-1]:
         for c_ in c:
             non_diff_set.add(float(frac((c_))))  # Convert fractions if needed
     #print(non_diff_set)
@@ -429,7 +524,7 @@ def graph_piece(f, cs, n_squares, index, j, i):
     plt.scatter(0, 0, color="red", zorder=3, label="Points", s = 10)
     
     # Formatting
-    plt.xticks(np.arange(0, 21, 2))  # Ticks from 0 to 20 with step size of 2
+    plt.xticks(np.arange(0, float(frac(cs[-1][1])), 2))  # Ticks from 0 to 20 with step size of 2
     plt.xlabel("t")
     plt.title("PDF_label")
     plt.grid()
@@ -513,27 +608,34 @@ def integrals(x0, y0, top, bottoms, points, left):
             "timeBottom3": 'timeBottom3 = t /. Solve[r2 - r1 == 0, t][[1]]',
             "timeRightEnd": 'timeRightEnd = t /. Solve[r2 - 1 == 0, t][[1]]',
             "timeLeftEndA": 'timeLeftEndA = t /. Solve[l2 - left == 0, t][[1]]',
-            "timeRightEndA": 'timeRightEndA = t /. Solve[r1 - 1 == 0, t][[1]]'
+            "timeRightEndA": 'timeRightEndA = t /. Solve[r1 - 1 == 0, t][[1]]',
+            "timePoint1A": 'timePoint1 = t /. Solve[l1 == m2, t][[1]]',
+            "timePoint2A": 'timePoint2 = t /. Solve[m1 == r2, t][[1]]'
         }
     
         results = {}
         for key, expr in expressions.items():
             try:
-                results[key] = M(expr)
+                results[key] = (M(expr))
+                print(f'{key}: {results[key]}')
             except Exception:
                 results[key] = None
-            #print(f'{key}: {results[key]}')
+                print(f'{key}: None')
         
         # Unpacking the results if you still want individual variables
         (timeEnter, timeLeftEnd, timeBottom1, timePoint1,
-         timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA) = results.values()
+         timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA, timePoint1A, timePoint2A) = results.values()
 
         #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA)
         
         if timeRightEnd is None and timeRightEndA is None:
-            timeRightEnd = M('timeRightEnd = 20')
+            timeRightEnd = M('timeRightEnd = Infinity')
         if timeLeftEnd is None and timeLeftEndA is None:
-            timeLeftEnd = M('timeLeftEnd = 20')
+            timeLeftEnd = M('timeLeftEnd = Infinity')
+        if timePoint1 is None and timePoint1A is None:
+            timePoint1 = M('timePoint1 = Infinity')
+        if timePoint2 is None and timePoint2A is None:
+            timePoint2 = M('timePoint2 = Infinity')
         
         if timeRightEnd is None and timeRightEndA is not None:
             timeRightEnd = M('timeRightEnd = timeRightEndA')
@@ -545,8 +647,23 @@ def integrals(x0, y0, top, bottoms, points, left):
             timeBottom1 = M('timeBottom1 = timeLeftEnd')
             results['timeLeftEnd'] = timeLeftEndA
             results['timeBottom1'] = timeLeftEndA
+        if timePoint1 is None and timePoint1A is not None:
+            timePoint1 = M('timePoint1 = timePoint1A')
+            timeBottom1 = M('timeBottom1 = timePoint1')
+            results['timePoint1'] = timePoint1A
+            results['timeBottom1'] = timePoint1A
+        if timePoint2 is None and timePoint2A is not None:
+            timePoint2 = M('timePoint2 = timePoint2A')
+            timeBottom2 = M('timeBottom2 = timePoint2')
+            results['timePoint2'] = timePoint2A
+            results['timeBottom2'] = timePoint2A
 
-        #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA)
+        new_vals = [timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA, timePoint1A, timePoint2A]
+        # for val in new_vals:
+        #     try:
+        #         print(float(val))
+        #     except:
+        #         print(val)
                 
     elif bottom1 is not None and bottom2 is not None and bottom3 is None:
         expressions = {
@@ -557,27 +674,32 @@ def integrals(x0, y0, top, bottoms, points, left):
             "timeBottom2": 'timeBottom2 = t /. Solve[m2 - m1 == 0, t][[1]]',
             "timePoint2": 'timePoint2 = t /. Solve[m2 - 1 == 0, t][[1]]',
             "timeLeftEndA": 'timeLeftEndA = t /. Solve[l2 - left == 0, t][[1]]',
-            "timePoint2A": 'timePoint2A = t /. Solve[m1 - 1 == 0, t][[1]]'
+            "timePoint2A": 'timePoint2A = t /. Solve[m1 - 1 == 0, t][[1]]',
+            "timePoint1A": 'timePoint1 = t /. Solve[l1 == m2, t][[1]]'
         }
     
         results = {}
         for key, expr in expressions.items():
             try:
-                results[key] = M(expr)
+                results[key] = (M(expr))
+                print(f'{key}: {results[key]}')
             except Exception:
                 results[key] = None
-            #print(f'{key}: {results[key]}')
+                print(f'{key}: None')
         
         # Unpacking the results if you still want individual variables
         (timeEnter, timeLeftEnd, timeBottom1, timePoint1,
-         timeBottom2, timePoint2, timeLeftEndA, timePoint2A) = results.values()
+         timeBottom2, timePoint2, timeLeftEndA, timePoint2A, timePoint1A) = results.values()
 
         #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeLeftEndA, timePoint2A)
         
         if timePoint2 is None and timePoint2A is None:
-            timePoint2 = M('timePoint2 = 20')
+            timePoint2 = M('timePoint2 = Infinity')
         if timeLeftEnd is None and timeLeftEndA is None:
-            timeLeftEnd = M('timeLeftEnd = 20')
+            timeLeftEnd = M('timeLeftEnd = Infinity')
+        if timePoint1 is None and timePoint1A is None:
+            timePoint1 = M('timePoint1 = Infinity')
+            
         if timePoint2 is None and timePoint2A is not None:
             timePoint2 = M('timePoint2 = timePoint2A')
             timeBottom2 = M('timeBottom2 = timePoint2A')
@@ -588,8 +710,18 @@ def integrals(x0, y0, top, bottoms, points, left):
             timeBottom1 = M('timeBottom1 = timeLeftEnd')
             results['timeLeftEnd'] = timeLeftEndA
             results['timeBottom1'] = timeLeftEndA
+        if timePoint1 is None and timePoint1A is not None:
+            timePoint1 = M('timePoint1 = timePoint1A')
+            timeBottom1 = M('timeBottom1 = timePoint1')
+            results['timePoint1'] = timePoint1A
+            results['timeBottom1'] = timePoint1A
 
-        #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeLeftEndA, timePoint2A)
+        new_vals = [timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeLeftEndA, timePoint2A, timePoint1A]
+        # for val in new_vals:
+        #     try:
+        #         #print(float(val))
+        #     except:
+        #         #print(val)
     
     elif bottom1 is not None and bottom2 is None and bottom3 is None:
         expressions = {
@@ -605,9 +737,10 @@ def integrals(x0, y0, top, bottoms, points, left):
         for key, expr in expressions.items():
             try:
                 results[key] = (M(expr))
+                print(f'{key}: {results[key]}')
             except Exception:
                 results[key] = None
-            #print(f'{key}: {results[key]}')
+                print(f'{key}: None')
         
         # Unpacking the results if you still want individual variables
         (timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeLeftEndA, timePoint1A) = results.values()
@@ -615,9 +748,9 @@ def integrals(x0, y0, top, bottoms, points, left):
         #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeLeftEndA, timePoint1A)
         
         if timePoint1 is None and timePoint1A is None:
-            timePoint1 = M('timePoint1 = 20')
+            timePoint1 = M('timePoint1 = Infinity')
         if timeLeftEnd is None and timeLeftEndA is None:
-            timeLeftEnd = M('timeLeftEnd = 20')
+            timeLeftEnd = M('timeLeftEnd = Infinity')
 
         if timePoint1 is None and timePoint1A is not None:
             timePoint1 = M('timePoint1 = timePoint1A')
@@ -630,7 +763,12 @@ def integrals(x0, y0, top, bottoms, points, left):
             results['timeLeftEnd'] = timeLeftEndA
             results['timeBottom1'] = timeLeftEndA
 
-        #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeLeftEndA, timePoint1A)
+        new_vals = [timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeLeftEndA, timePoint1A]
+        # for val in new_vals:
+        #     try:
+        #         #print(float(val))
+        #     except:
+        #         #print(val)
     else:
         raise ValueError("section defined improperly")
     
@@ -651,7 +789,6 @@ def integrals(x0, y0, top, bottoms, points, left):
             continue
         nums.add(num)
     nums = sorted(list(nums))
-    print(nums)
     
     #print()
     
@@ -683,7 +820,6 @@ def integrals(x0, y0, top, bottoms, points, left):
             #print("true")
             function_string[8:] = '000'
         function_string = ''.join(function_string)  # Convert list back to string
-        #print(function_string)  # Or store it somewhere
         function_strings.append("f$" + function_string)
     function_strings[1] = "f1"
     
@@ -692,23 +828,27 @@ def integrals(x0, y0, top, bottoms, points, left):
         print(function)
         eq = M(f"{equations_dict[function]}")
         equations.append(eq)
-    
+        
     nums.append(0)
     nums = sorted(nums)
     combined_string = 'combined = Piecewise[{'
     for i in range(len(function_strings)):
         t0 = nums[i]
+        t0 = re.sub(r"\s*-+\s*", "|", str(t0)).strip()
         try:
             t1 = nums[i+1]
+            t1 = re.sub(r"\s*-+\s*", "|", str(t1)).strip()
         except:
-            t1 = 20
-        combined_string = combined_string + f"/{{{function_strings[i]}, {t0} <= t < {t1}}}"
-        if i+1 < len(function_strings):
-            combined_string = combined_string + ","
+            #attempt
+            if function_strings[i] == "f$111$000$000" or function_strings[i] == "f$111$111$000" or function_strings[i] == "f$111$111$111":
+                break
+            t1 = "Infinity"
+        combined_string = combined_string + f"/{{{function_strings[i]}, {t0} <= t < {t1}}},"
+    combined_string = combined_string[:-1]
     combined_string = combined_string + "}]"
     combined_string = combined_string.replace("/", "")
-    combined_string = re.sub(r"\s*--\s*", "/", combined_string)
-    #print(combined_string)
+    combined_string = combined_string.replace("|", "/")
+    print(combined_string)
     
     combined = M(f"{combined_string}")
     eqs = M('Normal @ combined')
