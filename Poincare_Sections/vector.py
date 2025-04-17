@@ -1,15 +1,14 @@
 import numpy as np
-from matplotlib import pyplot as plt
-from Library import *
-from Library import Section
-import pandas as pd
+#from matplotlib import pyplot as plt
+#from Library import *
+#from Library import Section
 from time import time
 from flatsurf import *
 from sage.all import *
-import sys
-import pandas as pd
-import re
-import os
+#import sys
+#import pandas as pd
+#import re
+#import os
 import time  # testing
 
 
