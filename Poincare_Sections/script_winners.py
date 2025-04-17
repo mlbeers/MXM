@@ -55,7 +55,7 @@ g = []
 for num in range(10):
     try:
         gs = generators(perm, vecs0)
-        alphas, Cs, Ss, eigs, Ms, gens, eigenvecs = poincare_details2(perm, vecs0, gs)
+        alphas, Cs, Ss, eigs, Ms, gens, eigenvecs = poincare_setup(perm, vecs0, gs)
         print(alphas)
     except Exception as ex:
         print(ex)
