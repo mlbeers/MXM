@@ -1,29 +1,23 @@
-import numpy as np
 from matplotlib import pyplot as plt
-import pandas as pd
-from flatsurf import *
+#import pandas as pd
+#from flatsurf import *
 import os
-import pwlf
-from surface_dynamics.all import *
 from Library import *
-from Library import Section
-import math
+#import math
 from time import time
-import copy
-from scipy import integrate
-import sympy as sym
-from sympy import Symbol, solve, lambdify
-import traceback
+#import copy
+#from scipy import integrate
+#from sympy import Symbol, solve, lambdify
+#import traceback
 import dill
-import sys
-import unittest
-from surface_dynamics.all import Origami
-from utils import load_arrays_from_file  # testing
+#import sys
+#import unittest
+#from utils import load_arrays_from_file  # testing
 import re
 import subprocess
-from sage.all import *
-from surface_dynamics.all import Origami
-from surface_dynamics.all import *
+#from sage.all import *
+#from surface_dynamics.all import Origami
+#from surface_dynamics.all import *
 import numpy as np
 from fractions import Fraction as frac
 M = mathematica
@@ -33,56 +27,6 @@ from sympy.parsing.sympy_parser import parse_expr
 from sympy import symbols, And, Piecewise, Add, N
 from sympy.core.relational import Relational
 from integration_functions import *
-
-# Code from Sunrose
-# Gives non-visibility tori for testing
-D = OrigamiDatabase()
-q = D.query()
-qlist = q.list()
-
-
-def unit_hor_saddle(O):
-    count = 0
-    for vert in O.vertices():
-        tup = vert.up_right_tuple()
-        for i in tup:
-            for vert2 in O.vertices():
-                tup2 = vert2.up_right_tuple()
-                if O.r()(i) in tup2:
-                    return True
-    return False
-
-
-def is_unobstructed(O):
-    cusp_reps = O.teichmueller_curve().cusp_representatives()
-    for item in cusp_reps:
-        if not unit_hor_saddle(item[0]):
-            return False
-    return True
-
-
-def obstructed(n, **kwargs):
-    obstructed = []
-    count_obstructed = 0
-    p = D.query(nb_squares=n, **kwargs)
-    for item in p:
-        if not is_unobstructed(item):
-            obstructed.append(item)
-            count_obstructed += item.teichmueller_curve().orbit_graph().num_verts()
-    return (obstructed, count_obstructed)
-
-# list of permutations
-
-
-def perms_list(n, **kwargs):
-    obstructed = []
-    p = D.query(nb_squares=n, **kwargs)
-    for item in p:
-        if not is_unobstructed(item):
-            obstructed.append(item)
-            for perm in item.teichmueller_curve():
-                obstructed.append(perm)
-    return obstructed
 
 t = sp.Symbol('t')
 
