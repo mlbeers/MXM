@@ -80,10 +80,10 @@ args = [(vecs0, a, c, e, dx, j, n_squares, index) for j in range(len(a[0]))]
 for i in range(num_loops):
     if i == num_loops - 1:  # Last batch might have fewer tasks
         with Pool(len(args[i * num_pools:])) as p:
-            p.starmap(run_script, args[i * num_pools:])
+            p.starmap(compute_poincare_sections, args[i * num_pools:])
     else:
         with Pool(num_pools) as p:
-            p.starmap(run_script, args[i * num_pools : (i + 1) * num_pools])
+            p.starmap(compute_poincare_sections, args[i * num_pools : (i + 1) * num_pools])
 
 t1 = time()
 print(f"winners done: {(t1-t0)/60**2}\n")

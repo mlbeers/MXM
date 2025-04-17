@@ -25,7 +25,7 @@ import dill
 # inputs:
 # vecs0 - array of ... numpy
 # a - the alpha value... 
-def run_script(vecs0, a, c, e, dx, j, n_squares, index):
+def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
     print(f"id: {os.getpid()}")
     list_as = []
     list_cs = []
