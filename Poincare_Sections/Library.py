@@ -3,22 +3,19 @@ from sage.all import matrix  # testing
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
-from flatsurf import *
+#from flatsurf import *
 import pwlf
 import os
-import math
+#import math
 from surface_dynamics.all import *
+from surface_dynamics.all import Origami
 from time import time
 from scipy import integrate
 import unittest
-from surface_dynamics.all import Origami
 from utils import load_arrays_from_file  # testing
 from fractions import Fraction as frac
-from sympy import Matrix, Rational
 import sympy as sym
-from sympy import Symbol
-from sympy import solve, lambdify, Eq
-from sympy import Rational, sqrt
+from sympy import Matrix, sqrt, solve, lambdify, Eq, Symbol
 import dill
 
 # run_script - brief description
