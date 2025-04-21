@@ -237,6 +237,13 @@ def format_subsections_for_mathematica(section):
 
 # this code is not used but a clearer reference for a smple of what the integrals function computes.
 # this is for subsections with only 1 bottom equation so work to decide certain things about the section is not included
+
+# x0 is the x-component of the winning saddle
+# y0 is the y-component of the winning saddle
+# top is the equation of the top part of the section
+# bottom1 is the equation of the bottom1 part of the section (assumes only one bottom equation for simplicity)
+# left is the left-most point of the section
+
 def nb_1(x0, y0, top, bottom1, left):
     M('ClearAll["Global`*"]')
     x0 = M(f'x0 = {x0}')
@@ -245,10 +252,14 @@ def nb_1(x0, y0, top, bottom1, left):
     bottom1 = M(f'bottom1 = {bottom1}')
     left = M(f'left = {left}')
     func = M('func = 1/(t*x) - x0/y0*x')
+    # the time when the parabala enters the section is always equal to y0 (always the top right point)
     timeEnter = M('timeEnter = t /. Solve[y0 - t == 0, t][[1]]')
     symbolicZeros = M('symbolicZeros = Solve[bottom1 - func == 0, x]')
+    #left-most x-coordinate where parabola intersects bottom after intial intersection
     r1 = M('r1 = x /. symbolicZeros[[1]]')
+    #right-most x-coordinate where parabola intersects bottom after intial intersection
     r2 = M('r2 = x /. symbolicZeros[[2]]')
+    # time when the parabola hits the bottom line
     timeEdge = M(' timeEdge = t /. Solve[r2 - r1 == 0, t][[1]]')
     try:
         tR = M('tR = t /. Solve[r2 - 1 == 0, t][[1]]')
@@ -259,7 +270,8 @@ def nb_1(x0, y0, top, bottom1, left):
         tL = M('tL = t /. Solve[r1 - left == 0, t][[1]]')
     except:
         tL = None
-    
+
+    # intersection 
     try:
         tRA = M('tRA = t /. Solve[r1 - 1 == 0, t][[1]]')
     except:
@@ -283,12 +295,10 @@ def nb_1(x0, y0, top, bottom1, left):
     
     if tR is None and tRA is not None:
         tR = M('tR = tRA')
-        if timeEdge >= tR:
-            timeEdge = M('timeEdge = tR')
+        timeEdge = M('timeEdge = tR')
     if tL is None and tLA is not None:
         tL = M('tL = tLA')
-        if timeEdge >= tL:
-            timeEdge = M('timeEdge = tL')
+        timeEdge = M('timeEdge = tL')
 
     #print()
     #print(f"new Right End = {tR}")
