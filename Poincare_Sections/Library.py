@@ -1366,10 +1366,10 @@ def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
         eq2 = eqs[0]
 
         intersection_x = solve(Eq(eq1, eq2), x)
-            if intersection_x:  # If there is a solution
-                points[0] = intersection_x[0]
-            else:
-                print("intersection between top and first bottom point failed")
+        if intersection_x:  # If there is a solution
+            points[0] = intersection_x[0]
+        else:
+            print("intersection between top and first bottom point failed")
         
         sec.points_top = [points[0], points[-1]]
         
