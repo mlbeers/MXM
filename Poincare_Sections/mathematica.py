@@ -30,6 +30,8 @@ from integration_functions import *
 
 t = sp.Symbol('t')
 
+# computations originally done with notebooks in Mathematica/ directory, now automated with python
+# limitation exists if list "bottoms" has 4 or more entries, need to add/modify code to handle that instance
 def run_integrals(n_squares, index, a, perm):
     boundary_points = set()
     list_functions = []
@@ -229,102 +231,9 @@ def format_subsections_for_mathematica(section):
             if i == 0:
                 continue
             output.append("point" + str(i) + " = " + str(subsection.points_bottom[i]))
-        output.append("left = " + str(simplify(subsection.points_bottom[0], 20)))
+        output.append("left = " + str(subsection.points_bottom[0]))
         outputs.append(output)
     return outputs
-
-def simplify_eq(expr, den):
-    dict = expr.as_coefficients_dict()
-    b = dict[1]
-    m = dict[x]
-
-    m1 = None
-    b1 = None
-
-    m_num = None
-    m_den = None
-    b_num = None
-    b_den = None
-    
-    m_diff = 1
-    b_diff = 1
-    m_decimal = m - int(m)
-    b_decimal = b - int(b)
-    
-    for i in range(den, 0, -1):
-        for j in range(i+1):
-            if(m < 0):
-                m_result = abs(j/i + m_decimal)
-            else:
-                m_result = abs(j/i - m_decimal)
-
-            if(b < 0):
-                b_result = abs(j/i + b_decimal)
-            else:
-                b_result = abs(j/i - b_decimal)
-
-            if(m_result <= m_diff):
-                m_diff = m_result
-                if (m < 0):
-                    m_num = int(m)*i - j
-                    m_den = i
-                else:
-                    m_num = int(m)*i + j
-                    m_den = i
-
-            if(b_result <= b_diff):
-                b_diff = b_result
-                if (b < 0):
-                    b_num = int(b)*i - j
-                    b_den = i
-                else:
-                    b_num = int(b)*i + j
-                    b_den = i
-                    
-    if(m_den == 1):
-        m1 = str(m_num)
-    else:
-        m1 = str(m_num) + "/" + str(m_den)
-
-    if(b_den == 1):
-        b1 = str(b_num)
-    else:
-        b1 = str(b_num) + "/" + str(b_den)
-        
-    return  m1 + "*x + " + b1
-
-def simplify(m, den):
-
-    m1 = None
-
-    m_num = None
-    m_den = None
-    
-    m_diff = 1
-    m_decimal = m - int(m)
-    
-    for i in range(den, 0, -1):
-        for j in range(i+1):
-            if(m < 0):
-                m_result = abs(j/i + m_decimal)
-            else:
-                m_result = abs(j/i - m_decimal)
-
-            if(m_result <= m_diff):
-                m_diff = m_result
-                if (m < 0):
-                    m_num = int(m)*i - j
-                    m_den = i
-                else:
-                    m_num = int(m)*i + j
-                    m_den = i
-                    
-    if(m_den == 1):
-        m1 = str(m_num)
-    else:
-        m1 = str(m_num) + "/" + str(m_den)
-        
-    return  m1
 
 # this code is not used but a clearer reference for a smple of what the integrals function computes.
 # this is for subsections with only 1 bottom equation so work to decide certain things about the section is not included

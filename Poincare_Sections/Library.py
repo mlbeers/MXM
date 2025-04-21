@@ -1354,9 +1354,23 @@ def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
             intersection_x = solve(Eq(eq1, eq2), x)
             if intersection_x:  # If there is a solution
                 points.append(intersection_x[0])
+            else:
+                print(f"intersection between bottom equation {i} and bottom equation {i+1} point failed")
 
         sec.top.append(-frac(sec.vec[0][0], sec.vec[1][0]) * x + frac(int(1)/sec.vec[1][0]))
         sec.f_top.append(lambdify([x], sec.top[0]))
+
+        # modifying the first entry in points so that it is not the rounded version. Finding the x-componennt of the intersection between the    
+        # "top" equation and the first "bottom" equation
+        eq1 = sec.top[0]
+        eq2 = eqs[0]
+
+        intersection_x = solve(Eq(eq1, eq2), x)
+            if intersection_x:  # If there is a solution
+                points[0] = intersection_x[0]
+            else:
+                print("intersection between top and first bottom point failed")
+        
         sec.points_top = [points[0], points[-1]]
         
         for eq in eqs:
