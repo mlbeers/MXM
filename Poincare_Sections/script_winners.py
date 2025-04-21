@@ -40,6 +40,8 @@ os.makedirs(os.path.join("results", f"{n_squares} - {index}"), exist_ok=True)  #
 permutations = perms_list(n_squares)
 
 perm = permutations[index]
+plot = perm.plot()
+plot.save(os.path.join("results", f"{n_squares} - {index}", "permutation.png"))
 
 # get a list of saddle connections
 vec_file = "vecs" + str(n_squares) + "-" + str(index) + ".npy"
