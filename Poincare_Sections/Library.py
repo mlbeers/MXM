@@ -753,6 +753,27 @@ class Section:
         a = horo@(Mab@self.vec)
         return solve(a[1][0], y)[0]
 
+# Code from pwlf
+x = Symbol('x')
+def get_symbolic_eqn(pwlf_, segment_number):
+    if pwlf_.degree < 1:
+        raise ValueError('Degree must be at least 1')
+    if segment_number < 1 or segment_number > pwlf_.n_segments:
+        raise ValueError('segment_number not possible')
+    # assemble degree = 1 first
+    for line in range(segment_number):
+        if line == 0:
+            my_eqn = pwlf_.beta[0] + (pwlf_.beta[1])*(x-pwlf_.fit_breaks[0])
+        else:
+            my_eqn += (pwlf_.beta[line+1])*(x-pwlf_.fit_breaks[line])
+    # assemble all other degrees
+    if pwlf_.degree > 1:
+        for k in range(2, pwlf_.degree + 1):
+            for line in range(segment_number):
+                beta_index = pwlf_.n_segments*(k-1) + line + 1
+                my_eqn += (pwlf_.beta[beta_index]) * \
+                    (x-pwlf_.fit_breaks[line])**k
+    return my_eqn.simplify()
 
 def sec_setup(df, dx_y):
     sec_list = []
@@ -846,196 +867,6 @@ def sec_comp(sec_list, dx):
             sec.points_bottom = breaks2
         secs.append(sec)
     return secs
-
-
-def time_comp(secs):
-    times = []
-    for sec in secs:
-        x_val = sec.points_top[-1]
-        y_val = sec.f_top[-1](x_val)
-        x, y = sym.symbols('x y')
-        val = sec.t().subs({x: x_val, y: y_val})
-        times.append(val)
-    times2 = [times[0]]
-    for time in times:
-        add = True
-        for i in range(len(times2)):
-            if abs(time-times2[i]) < 0.01:
-                add = False
-        if add:
-            times2.append(time)
-
-    return times2
-
-
-def pdf(vals, prob_times, dx, n_squares, index, j, test=False):
-    times = list(np.arange(0, 10, 20*dx))
-    a = list(sorted(vals))
-    factor = 1/min(a)*min(prob_times)
-    b = []
-    for item in a:
-        b.append(item*factor)
-    cdf = [0]
-    # compute cdf
-    for t in times:
-        num = cdf[-1]
-        for i in range(num, len(b)):
-            if b[i] <= t:
-                num += 1
-                continue
-            else:
-                cdf.append(num)
-                break
-    # compute pdf
-    pdf = []
-    for i in range(len(cdf) - 1):
-        delta = (cdf[i+1] - cdf[i])/dx
-        pdf.append(delta)
-    fig, ax = plt.subplots(figsize=(10, 10))
-    #print(f'length of inputs: {len(times)}, {len(pdf)}')
-    ax.scatter(times, pdf, s=0.5)
-
-    # plot discontinuities
-    probs2 = []
-    for item in prob_times:
-        probs2.append(item)
-        # probs2.append(factor*item)
-    for t in probs2:
-        if t > max(times):
-            continue
-        for i in range(len(times)):
-            if t < times[i]:
-                ax.scatter(t, pdf[i-1], s=20, color="red")
-                break
-    if test == True:
-        print(prob_times)
-    plt.show()
-    plt.savefig(os.path.join(
-        "results", f"{n_squares} - {index}", f"pdf - {j}"))
-    plt.close(fig)
-    return pdf
-
-
-# Code from pwlf
-
-x = Symbol('x')
-
-
-def get_symbolic_eqn(pwlf_, segment_number):
-    if pwlf_.degree < 1:
-        raise ValueError('Degree must be at least 1')
-    if segment_number < 1 or segment_number > pwlf_.n_segments:
-        raise ValueError('segment_number not possible')
-    # assemble degree = 1 first
-    for line in range(segment_number):
-        if line == 0:
-            my_eqn = pwlf_.beta[0] + (pwlf_.beta[1])*(x-pwlf_.fit_breaks[0])
-        else:
-            my_eqn += (pwlf_.beta[line+1])*(x-pwlf_.fit_breaks[line])
-    # assemble all other degrees
-    if pwlf_.degree > 1:
-        for k in range(2, pwlf_.degree + 1):
-            for line in range(segment_number):
-                beta_index = pwlf_.n_segments*(k-1) + line + 1
-                my_eqn += (pwlf_.beta[beta_index]) * \
-                    (x-pwlf_.fit_breaks[line])**k
-    return my_eqn.simplify()
-
-# generate vectors for saddle connections on STS
-
-
-def vectors2(perm, length=200):
-    a = str(perm)
-    h, v = a.split("\n")
-    S = SymmetricGroup(len(h))
-    T = translation_surfaces.origami(S(h), S(v))
-    T = T.erase_marked_points()
-    sc_list = T.saddle_connections(length)
-    slopes_all = []
-    for item in sc_list:
-        vec = item.holonomy().n()
-        direction = item.direction
-        if vec not in slopes_all:
-            if vec[0] >= -length/20 and vec[0] <= length/20:
-                if vec[1] >= -length/20 and vec[1] <= length/20:
-                    slopes_all.append(item.holonomy().n())
-    vecs = []
-    for vec in slopes_all:
-        item = np.array([[vec[0]], [vec[1]]])
-        vecs.append(item)
-    return vecs
-
-
-def save_arrays_to_file(file_path, arrays_list):
-    # Save arrays to a single NumPy file
-    np.save(file_path, arrays_list)
-
-# take files from saddle.py and load them into notebook
-
-
-def load_arrays_from_file(file_path):
-    # Load arrays from the NumPy file
-    arrays_list = np.load(file_path, allow_pickle=True)
-
-    # Ensure each element in the list is a NumPy array
-    arrays_list = [np.array(array) for array in arrays_list]
-
-    return arrays_list
-
-
-def covolume(secs):
-    sum = 0
-    for i in range(len(secs)):
-
-        all_points = []
-        for item in secs[i].points_top:
-            all_points.append(item)
-        for item in secs[i].points_bottom:
-            all_points.append(item)
-
-        all_points = set(all_points)
-        all_points = list(all_points)
-        all_points.sort()
-
-        m = 0
-        n = 0
-        for k in range(1, len(all_points)):
-            if (not (all_points[k-1] >= secs[i].points_top[m] and all_points[k] <= secs[i].points_top[m+1])):
-                m += 1
-            if (not (all_points[k-1] >= secs[i].points_bottom[n] and all_points[k] <= secs[i].points_bottom[n+1])):
-                n += 1
-            top_eq = secs[i].f_top[m]
-            bottom_eq = secs[i].f_bottom[n]
-            upper = all_points[k]
-            lower = all_points[k-1]
-            x_ = float(secs[i].vec[0][0])
-            y_ = float(secs[i].vec[1][0])
-
-            # Perform the double integral
-            def f(y, x):
-                print(f"x: {x}, x_: {x_}, y: {y}, y_: {y_}")
-                return y_ / (x * (x_ * x + y_ * y))
-            result, error = integrate.dblquad(
-                f, lower, upper, lambda x: bottom_eq(x), lambda x: top_eq(x))
-            sum += result
-    return sum
-
-
-def read_df(n_squares, index, cusp):
-    df = pd.read_csv(os.path.join(
-        "results", f"{n_squares} - {index}", "df - " + str(cusp)))
-
-    def read_vec(s):
-        s = s.replace("[", "")
-        s = s.replace("]", "")
-        nums = s.split("\n")
-        nums[0] = frac(nums[0])
-        nums[1] = frac(nums[1])
-        return np.array([[nums[0]], [nums[1]]])
-
-    df["vec"] = df["vec"].apply(read_vec)
-    return df
-
 
 def sec_setup2(df, dx_y):
     sec_list = []
@@ -1180,6 +1011,158 @@ def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
             
         secs.append(sec)
     return secs
+
+def time_comp(secs):
+    times = []
+    for sec in secs:
+        x_val = sec.points_top[-1]
+        y_val = sec.f_top[-1](x_val)
+        x, y = sym.symbols('x y')
+        val = sec.t().subs({x: x_val, y: y_val})
+        times.append(val)
+    times2 = [times[0]]
+    for time in times:
+        add = True
+        for i in range(len(times2)):
+            if abs(time-times2[i]) < 0.01:
+                add = False
+        if add:
+            times2.append(time)
+
+    return times2
+
+def pdf(vals, prob_times, dx, n_squares, index, j, test=False):
+    times = list(np.arange(0, 10, 20*dx))
+    a = list(sorted(vals))
+    factor = 1/min(a)*min(prob_times)
+    b = []
+    for item in a:
+        b.append(item*factor)
+    cdf = [0]
+    # compute cdf
+    for t in times:
+        num = cdf[-1]
+        for i in range(num, len(b)):
+            if b[i] <= t:
+                num += 1
+                continue
+            else:
+                cdf.append(num)
+                break
+    # compute pdf
+    pdf = []
+    for i in range(len(cdf) - 1):
+        delta = (cdf[i+1] - cdf[i])/dx
+        pdf.append(delta)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    #print(f'length of inputs: {len(times)}, {len(pdf)}')
+    ax.scatter(times, pdf, s=0.5)
+
+    # plot discontinuities
+    probs2 = []
+    for item in prob_times:
+        probs2.append(item)
+        # probs2.append(factor*item)
+    for t in probs2:
+        if t > max(times):
+            continue
+        for i in range(len(times)):
+            if t < times[i]:
+                ax.scatter(t, pdf[i-1], s=20, color="red")
+                break
+    if test == True:
+        print(prob_times)
+    plt.show()
+    plt.savefig(os.path.join(
+        "results", f"{n_squares} - {index}", f"pdf - {j}"))
+    plt.close(fig)
+    return pdf
+
+# generate vectors for saddle connections on STS, alternate method 
+def vectors2(perm, length=200):
+    a = str(perm)
+    h, v = a.split("\n")
+    S = SymmetricGroup(len(h))
+    T = translation_surfaces.origami(S(h), S(v))
+    T = T.erase_marked_points()
+    sc_list = T.saddle_connections(length)
+    slopes_all = []
+    for item in sc_list:
+        vec = item.holonomy().n()
+        direction = item.direction
+        if vec not in slopes_all:
+            if vec[0] >= -length/20 and vec[0] <= length/20:
+                if vec[1] >= -length/20 and vec[1] <= length/20:
+                    slopes_all.append(item.holonomy().n())
+    vecs = []
+    for vec in slopes_all:
+        item = np.array([[vec[0]], [vec[1]]])
+        vecs.append(item)
+    return vecs
+
+
+def save_arrays_to_file(file_path, arrays_list):
+    # Save arrays to a single NumPy file
+    np.save(file_path, arrays_list)
+
+def load_arrays_from_file(file_path):
+    # Load arrays from the NumPy file
+    arrays_list = np.load(file_path, allow_pickle=True)
+    # Ensure each element in the list is a NumPy array
+    arrays_list = [np.array(array) for array in arrays_list]
+    return arrays_list
+
+# def covolume(secs):
+#     sum = 0
+#     for i in range(len(secs)):
+
+#         all_points = []
+#         for item in secs[i].points_top:
+#             all_points.append(item)
+#         for item in secs[i].points_bottom:
+#             all_points.append(item)
+
+#         all_points = set(all_points)
+#         all_points = list(all_points)
+#         all_points.sort()
+
+#         m = 0
+#         n = 0
+#         for k in range(1, len(all_points)):
+#             if (not (all_points[k-1] >= secs[i].points_top[m] and all_points[k] <= secs[i].points_top[m+1])):
+#                 m += 1
+#             if (not (all_points[k-1] >= secs[i].points_bottom[n] and all_points[k] <= secs[i].points_bottom[n+1])):
+#                 n += 1
+#             top_eq = secs[i].f_top[m]
+#             bottom_eq = secs[i].f_bottom[n]
+#             upper = all_points[k]
+#             lower = all_points[k-1]
+#             x_ = float(secs[i].vec[0][0])
+#             y_ = float(secs[i].vec[1][0])
+
+#             # Perform the double integral
+#             def f(y, x):
+#                 print(f"x: {x}, x_: {x_}, y: {y}, y_: {y_}")
+#                 return y_ / (x * (x_ * x + y_ * y))
+#             result, error = integrate.dblquad(
+#                 f, lower, upper, lambda x: bottom_eq(x), lambda x: top_eq(x))
+#             sum += result
+#     return sum
+
+def read_df(n_squares, index, cusp):
+    df = pd.read_csv(os.path.join(
+        "results", f"{n_squares} - {index}", "df - " + str(cusp)))
+
+    def read_vec(s):
+        s = s.replace("[", "")
+        s = s.replace("]", "")
+        nums = s.split("\n")
+        nums[0] = frac(nums[0])
+        nums[1] = frac(nums[1])
+        return np.array([[nums[0]], [nums[1]]])
+
+    df["vec"] = df["vec"].apply(read_vec)
+    return df
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~ Tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
