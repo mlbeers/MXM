@@ -69,7 +69,6 @@ def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
         secs = sec_comp(sec_list, dx)
         sec_list2, vec_order, vec_dict = sec_setup2(df, dx_y)
         secs2 = sec_comp2(df, sec_list2, vec_order, vec_dict, dx, dx_y, m1, y0)
-
         
         with open(os.path.join("results", f"{n_squares} - {index}", "secs - " + str(j) + ".dill"), 'wb') as f:
             dill.dump(secs, f)
@@ -130,6 +129,7 @@ def perms_list(n, **kwargs):
                 obstructed.append(perm)
     return obstructed
 
+# get number of new processes to be made when running script_winners
 def pool_num(len_alphas):
     num_cores = os.cpu_count()
     num_pools = min(int(num_cores*.5), len_alphas)
@@ -137,8 +137,8 @@ def pool_num(len_alphas):
     print(f"pools: {num_pools}, loops: {num_loops}")
     return num_pools, num_loops
 
+# find the generators of each cusp of the STS
 def generators(perm, vecs0):
-    # find the generators of each cusp of the STS
     generators = []
     a = perm.veech_group().cusps()
     for item in a:
@@ -160,31 +160,35 @@ class DetailsError(Exception):
 #   vecs0: list of saddle connections on this STS to check (this is large)
 #
 # outputs:
-#   alphas:
-#   Cs:
-#   C_invs:
+#   alphas: alpha_values
+#   Cs: C-matricies
+#   C_invs: inverse C-matricies
 #   eigs: eigenvalues
 #   Ms: C*generator*C^inv
-#   generators:
+#   generators: generators
 #   eigenvecs: eigenvectors
 
 def poincare_setup(perm, vecs0, generators):
     M = mathematica
-    # find the eigenvectors for each generator and make sure they are 1
     eigs = []
     eigenvecs = []
+    # get components of each generator
     for matrix in generators:
         a = matrix[0][0]
         b = matrix[0][1]
         c = matrix[1][0]
         d = matrix[1][1]
 
+        # make matrix string for use in mathematica
         matrix_string = f"A = {{{{{a}, {b}}}, {{{c}, {d}}}}}"
         A = M(matrix_string)
+
+        # get eigenvalues
         eigenvalues = M('eigenvalues = Eigenvalues[A]')
         eig1 = int(M('eigenvalues[[1]]'))
         eig2 = int(M('eigenvalues[[2]]'))
 
+        # mkae sure they are 1
         if eig1 == eig2:
             if eig1 == 1:
                 eigs.append(eig1)
@@ -192,11 +196,15 @@ def poincare_setup(perm, vecs0, generators):
                 raise ValueError("Eigenvalue not equal to 1")
         else:
             raise ValueError("Different eigenvalues")
-        
+
+        # get eigenvectors
         eigenvectors = M('eigenvectors = Eigenvectors[A]')
+        # make all the entries integers for easier scaling and grab the first one (matrix isnt diagonlaizable to there is only one unique vector)
         scaledEigenvector = M('scaledEigenvectors = Map[LCM @@ Denominator[#]*# &, eigenvectors][[1]]')
+        # get x and y-coords
         scaled_x = int(scaledEigenvector.sage()[0])
         scaled_y = int(scaledEigenvector.sage()[1])
+        # create vector
         vec = np.array([[scaled_x], [scaled_y]])
         eigenvecs.append(vec)
 
@@ -215,7 +223,9 @@ def poincare_setup(perm, vecs0, generators):
         
         return magnitudes, slopes, x_signs, y_signs
 
+    # get the slope, sign and mag info for the eigenvectors
     eigen_mags, eigen_slopes, eigen_x_signs, eigen_y_signs = get_magnitude_slope_sign(eigenvecs)
+    # get the slope, sign and mag info for all saddle connections
     saddle_mags, saddle_slopes, saddle_x_signs, saddle_y_signs = get_magnitude_slope_sign(vecs0)
 
     # Find corresponding saddle vectors for eigenvectors
@@ -242,15 +252,24 @@ def poincare_setup(perm, vecs0, generators):
     saddle_vecs = np.array(saddle_vecs)
     
     # find c_inv and c
+    # C-matricies
     Cs = []
+    # C-inverses
     C0s = []
+    # alpha values for sections
     alphas = []
-    Ms = []
-    S0s = []
-    Ss = []
-    scales = []
-    mults = []
+    # jordan decomposition with pre-scaled matricies
     Js = []
+    # jordan decomposition with scaled matricies, used for alphas
+    Ms = []
+    # pre-scaled C-matrix
+    Ss = []
+    # pre-scaled C^-1 matrix
+    S0s = []
+    # factor needed to take eigenvec -> saddle connection
+    mults = []
+    # 2x2 matrix using mults to take S0 and S to C0 and C
+    scales = []
     for matrix, saddle_vec, eigen_vec in zip(generators, saddle_vecs, eigenvecs):
         a = matrix[0][0]
         b = matrix[0][1]
@@ -267,14 +286,24 @@ def poincare_setup(perm, vecs0, generators):
         # print(S)
         # print()
         # print("-----------------------")
-    
+
+        # convert S to a usable version in python
         S_np = np.array(S.sage())
         a_ = frac(str(S_np[0][0]))
         b_ = frac(str(S_np[0][1]))
         c_ = frac(str(S_np[1][0]))
         d_ = frac(str(S_np[1][1]))
         S = np.array([[a_, b_], [c_, d_]], dtype=object)
-    
+
+        #convert S0 to a usable version in python
+        S0_np = np.array(S0.sage())
+        a_2 = frac(str(S0_np[0][0]))
+        b_2 = frac(str(S0_np[0][1]))
+        c_2 = frac(str(S0_np[1][0]))
+        d_2 = frac(str(S0_np[1][1]))
+        S0 = np.array([[a_2, b_2], [c_2, d_2]], dtype=object)
+
+        # convert J to a usable version in python
         M_np = np.array(J.sage())
         a_1 = int(M_np[0][0])
         b_1 = int(M_np[0][1])
@@ -282,19 +311,17 @@ def poincare_setup(perm, vecs0, generators):
         d_1 = int(M_np[1][1])
         J = np.array([[a_1, b_1], [c_1, d_1]])
 
-        S0_np = np.array(S0.sage())
-        a_2 = frac(str(S0_np[0][0]))
-        b_2 = frac(str(S0_np[0][1]))
-        c_2 = frac(str(S0_np[1][0]))
-        d_2 = frac(str(S0_np[1][1]))
-        S0 = np.array([[a_2, b_2], [c_2, d_2]], dtype=object)
-    
+        # make sure J is the correct Jordan decomposition
         if a_1 != 1 or c_1 != 0 or d_1 != 1:
             raise ValueError(f"wrong J: {J}")
 
+        # get determinant of S0
         detC = (a_2*d_2) - (b_2*c_2)
         factor = int(1)/sqrt(detC)
+        # normalize S0, call is c0
         c0 = (factor * S0)
+
+        # find factor needed to send (1,0) to the saddle connection
         x_ = (c0@np.array([[1],[0]]))[0][0]
         y_ = (c0@np.array([[1],[0]]))[1][0]
         mult0 = saddle_vec[0][0]/x_
@@ -305,16 +332,21 @@ def poincare_setup(perm, vecs0, generators):
             mult = mult1
         else:
             raise ValueError("Both coordinates in saddle_vec are zero. Division by zero is not defined.")
+
+        # create a determinant 1 matrix that will scale c0 to send (1,0) to the saddle connection with correct length
         scale = np.array([[mult, 0], [0, int(1)/mult]], dtype=object)
         c0 = c0 @ scale
+        # find the inverse
         c = np.array([[c0[1][1], -c0[0][1]], [-c0[1][0], c0[0][0]]], dtype=object)
 
+        # compute new Jordan decomposition
         J_new = c@matrix@c0
         a_1 = int(J_new[0][0])
         b_1 = int(J_new[0][1])
         c_1 = int(J_new[1][0])
         d_1 = int(J_new[1][1])
 
+        # ensure its correclt formatted
         if a_1 != 1 or c_1 != 0 or d_1 != 1:
             raise ValueError(f"wrong J_new: {J_new}")
         
@@ -343,35 +375,59 @@ def try_poincare_setup(sts_data, trys):
             details.append((alphas, c_matrices, generators, eigenvectors))
         except:
             pass
-
     return details
 
+# compute the dimensions of the Poincare section
+
+# input:
+    # alpha: alpha value for the section
+    # c: c-matrix for the section
+    # eig: eigenvalue for the section
+    # vecs0: original set up saddle connections for the STS
+    # dx: x-spacing used for point sampling in the function "winners"
+    # improved: boolean variable, when True, will compute the dimensions of the section used the "improved method" which ensures the section will not have infinite subdivisions of winning saddle connections
+
+#output:
+    # vecs: new vectors to be used for computations, acted on by the c-matrix for the given cusp
+    # x_vals: x-values used for computation 
+    # m0: slope for the top portion of the section
+    # m1: slope for the bottom portion of the section
+    # x0: x component of the "section" vector
+    # y0: y component of the "section" vector
+    # dx_y: y-spacing used for point sampling in the function "winners"
+    # z: same as y0, used for testing
 
 def setup(alpha, c, eig, vecs0, dx, improved=True):
     x_vals = np.arange(dx, 1, dx)
-    # for the poincare section with matrix c, the original saddle connections are acted on by this matrix
+    # create list of new vectors
     vecs1 = c@vecs0
-    # find vectors such that -10 <= x <= 10 and 0 < y <= 10
     vecs = []
     for item in vecs1:
         vecs.append(item)
 
-    # section vector is vector with smallest y-component with y > 0 and corresponding x-component with 0 <= x <= 1 with smallest slope. It defines the y-intercept of the section and partially defines slopes of the lines of the section
+    # section vector is the vector with smallest y-component with y > 0 and corresponding shortest x-component where x > 0. It defines the y-intercept of the section and partially defines slopes of the lines of the section
     sec_vec = np.array([[None], [None]])
     for i in range(len(vecs)):
+        # check if saddle connection has negative components
         if (vecs[i][0][0] <= 0 or vecs[i][1][0] <= 0):
             continue
         else:
+            # establish a section vector if there is none
             if sec_vec[0][0] == None:
                 sec_vec = vecs[i]
+            # compare section vector to saddle connection
             else:
+                # if sec_vec y-component is larger, define section vector as this saddle connection
                 if sec_vec[1][0] > vecs[i][1][0]:
                     sec_vec = vecs[i]
+                # if y-components are the same, compare x-components
                 elif sec_vec[1][0] == vecs[i][1][0]:
                     if sec_vec[0][0] > vecs[i][0][0]:
                         sec_vec = vecs[i]
+    # if no such section vector exists, assign the vector (0,1) which is the same as not having a section vector in calculation
     if sec_vec[0][0] == None:
         sec_vec = np.array([[0], [1]])
+    # assign components to variables
     x0 = sec_vec[0][0]
     y0 = sec_vec[1][0]
     z = y0
@@ -394,8 +450,8 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
 
 
 # It first computes winning vectors from all possible vectors on points on the
-# bottom and vertical edge of the poincare section. Then it computes winners
-# for all points on the poincare section from the set of winners from the sides.
+# top, vertical and bottom edges of the poincare section. Then it computes winners
+# for all points in the poincare section from the subsetset of winners calculated in the first step.
 #
 # inputs:
 #   vecs: array of vectors, after being multiplied by C matrix
@@ -406,7 +462,9 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
 #   dx: step size for separation of points to sample in the section
 #   dx_y: step size for separation of points to sample in the section
 #
-# output: TODO
+# output: 
+    # df: dateframe that has the x and y coordinates that were sampled, the winning saddle connection at those coordinates, the label gievn to the vector for plotting purposes, and the rounded return time associated with that point
+
 def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     # dictionary for plotting
     saddle_dict = {}
@@ -422,14 +480,15 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     vecs = np.hstack(vecs0)  # Keep the original structure for output if needed
 
     # top edge
-    # Stack list of numpy arrays into a single 2D array
     t0 = time()
     for a in np.arange(dz, 1, dz):
         # Matrix stays outside the inner loop
         Mab = np.array([[a, m0*a + 1/y0 - dx_y], [0, a]], dtype = 'float')
 
+        # apply Mab matrix to all vectors
         new_vecs = Mab @ vecs1
 
+        # break into components
         x_comps = new_vecs[0, :]
         y_comps = new_vecs[1, :]
 
@@ -583,7 +642,8 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
         winners.append(winner.reshape(2, 1))
     t1 = time()
     print("diagonal done: " + str(t1 - t0))
-    
+
+    # filter out winners that are "None"
     winners2 = []
     for winner in winners:
         try:
@@ -681,7 +741,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     df = pd.DataFrame.from_dict(saddle_dict)
     return df
 
-
+# plot the Poincare sections and save them
 def plot(df, vecs, c, j, n_squares, index, test=False):
     fig, ax = plt.subplots(figsize=(10, 10))
     # plot winners
@@ -717,6 +777,7 @@ def plot(df, vecs, c, j, n_squares, index, test=False):
         unique_arrays.reverse()
         for arr in unique_arrays:
             print(tuple(item[0] for item in arr))
+    # if there are points with no winning vec, raise an error
     if len(df[df["lab"] == len(vecs)]) != 0:
         raise ValueError("Poincare section has empty portion")
     plt.show()
@@ -738,6 +799,7 @@ class Section:
         self.points_top = None
         self.points_bottom = None
 
+    # output time equation
     def t(self):
         x, y, t = sym.symbols('x y t')
         Mab = np.array([[x, y], [0, 1/x]])
@@ -753,7 +815,7 @@ class Section:
         a = horo@(Mab@self.vec)
         return solve(a[1][0], y)[0]
 
-# Code from pwlf
+# Code from pwlf, used to get piecewise representation of the sub-sections
 x = Symbol('x')
 def get_symbolic_eqn(pwlf_, segment_number):
     if pwlf_.degree < 1:
