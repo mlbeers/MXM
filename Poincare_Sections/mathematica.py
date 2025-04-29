@@ -36,7 +36,6 @@ def run_integrals(n_squares, index, a, perm):
     boundary_points = set()
     list_functions = []
     M('ClearAll["Global`*"]')
-    allFunctions = M('allFunctions= {}')
     totalVol = M('totalVol = 0')
     
     for j in range(len(a[0])):
@@ -87,13 +86,14 @@ def run_integrals(n_squares, index, a, perm):
                     for c_ in c:
                         boundary_points.add(c_)
 
-                # creating peicewsie function to be saved as a dill file, the true equation
+                # creating piecewise function to be saved as a dill file, the true equation
                 eq_tuples = []
                 for eq, cond in zip(es, cs):
                     # converting from Mathematica to sympy notation
                     cleaned_eq = (parse_expr(eq, local_dict={'t': t, 'sp': sp}), sp.And(sp.simplify(cond[0]) <= t, t < sp.simplify(cond[1])))
                     eq_tuples.append(cleaned_eq)
-    
+
+                # save equation in sympy format from mathematica format
                 f = sp.Piecewise(*eq_tuples)
                 with open(os.path.join(results_dir, f"equation_{i}.dill"), 'wb') as file:
                     dill.dump(f, file)
@@ -148,6 +148,7 @@ def run_integrals(n_squares, index, a, perm):
 
     # Open the file in write mode
     # symbolic version
+    # totalVol is a global variable that is added to with every call to "integrals"
     totalVol = M('totalVol = FullSimplify[totalVol]')
     # numeric version
     totalVol2 = M('totalVolN = N[totalVol]')
@@ -289,8 +290,10 @@ def nb_1(x0, y0, top, bottom1, left):
     #print(f"Left Alt = {tLA}")
     
     if tR is None and tRA is None:
+        #placefolder for infinity, used infinity to actual code
         tR = M('tR = 20')
     if tL is None and tLA is None:
+        #placeholder for infinity, used infinity to actual code
         tL = M('tL = 20')
     
     if tR is None and tRA is not None:
@@ -479,7 +482,11 @@ def integrals(x0, y0, top, bottoms, points, left):
             "timeLeftEndA": 'timeLeftEndA = t /. Solve[l2 - left == 0, t][[1]]',
             "timeRightEndA": 'timeRightEndA = t /. Solve[r1 - 1 == 0, t][[1]]',
             "timePoint1A": 'timePoint1 = t /. Solve[l1 == m2, t][[1]]',
-            "timePoint2A": 'timePoint2 = t /. Solve[m1 == r2, t][[1]]'
+            "timePoint2A": 'timePoint2 = t /. Solve[m1 == r2, t][[1]]',
+            # "timePoint1B": 'timePoint1 = t /. Solve[l1 == m1, t][[1]]',
+            # "timePoint1C": 'timePoint1 = t /. Solve[l2 == m2, t][[1]]',
+            # "timePoint2B": 'timePoint1 = t /. Solve[m1 == r1, t][[1]]',
+            # "timePoint2C": 'timePoint1 = t /. Solve[m2 == r2, t][[1]]'
         }
     
         results = {}
@@ -544,7 +551,9 @@ def integrals(x0, y0, top, bottoms, points, left):
             "timePoint2": 'timePoint2 = t /. Solve[m2 - 1 == 0, t][[1]]',
             "timeLeftEndA": 'timeLeftEndA = t /. Solve[l2 - left == 0, t][[1]]',
             "timePoint2A": 'timePoint2A = t /. Solve[m1 - 1 == 0, t][[1]]',
-            "timePoint1A": 'timePoint1 = t /. Solve[l1 == m2, t][[1]]'
+            "timePoint1A": 'timePoint1 = t /. Solve[l1 == m2, t][[1]]',
+            # "timePoint1B": 'timePoint1 = t /. Solve[l1 == m1, t][[1]]',
+            # "timePoint1C": 'timePoint1 = t /. Solve[l2 == m2, t][[1]]'
         }
     
         results = {}
@@ -703,18 +712,23 @@ def integrals(x0, y0, top, bottoms, points, left):
     combined_string = 'combined = Piecewise[{'
     for i in range(len(function_strings)):
         t0 = nums[i]
+        # make string representations of fractional times consistent
         t0 = re.sub(r"\s*-+\s*", "|", str(t0)).strip()
+        # same thing but if t1 is infinity, it will throw an error
         try:
             t1 = nums[i+1]
             t1 = re.sub(r"\s*-+\s*", "|", str(t1)).strip()
         except:
-            #attempt
+            # if parabola has exited the section, dont need to add any more to the piecewise equation
             if function_strings[i] == "f$111$000$000" or function_strings[i] == "f$111$111$000" or function_strings[i] == "f$111$111$111":
                 break
             t1 = "Infinity"
         combined_string = combined_string + f"/{{{function_strings[i]}, {t0} <= t < {t1}}},"
+    # remove comma at the end of string
     combined_string = combined_string[:-1]
+    # add closing brackets
     combined_string = combined_string + "}]"
+    # fix string representations and make fractions properly
     combined_string = combined_string.replace("/", "")
     combined_string = combined_string.replace("|", "/")
     print(combined_string)
@@ -722,6 +736,8 @@ def integrals(x0, y0, top, bottoms, points, left):
     combined = M(f"{combined_string}")
     eqs = M('Normal @ combined')
 
+    # CoVolume Calculations
+    # totalVol is a global variable that is not reset between function calls among sections and subsections. totalVol will be the cumalitive CoVolume for the entire STS after running this fuinction for all cusps and will be the coVolume of the shape
     if bottom3 is not None:
         b1Co = M('b1Co = Integrate[funct, {x, left, point1}, {y, bottom1, top}]')
         b2Co = M('b2Co = Integrate[funct, {x, point1, point2}, {y, bottom2, top}]')
@@ -735,7 +751,6 @@ def integrals(x0, y0, top, bottoms, points, left):
         b1Co = M('b1Co = Integrate[funct, {x, left, point1}, {y, bottom1, top}]')
         totalVol = M('totalVol = totalVol + b1Co')
 
-    allFunctions = M('allFunctions = Append[allFunctions, eqs]')
     #print(totalVol)
-        
+
     return eqs, totalVol
