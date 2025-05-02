@@ -481,12 +481,10 @@ def integrals(x0, y0, top, bottoms, points, left):
             "timeRightEnd": 'timeRightEnd = t /. Solve[r2 - 1 == 0, t][[1]]',
             "timeLeftEndA": 'timeLeftEndA = t /. Solve[l2 - left == 0, t][[1]]',
             "timeRightEndA": 'timeRightEndA = t /. Solve[r1 - 1 == 0, t][[1]]',
-            "timePoint1A": 'timePoint1 = t /. Solve[l1 == m2, t][[1]]',
-            "timePoint2A": 'timePoint2 = t /. Solve[m1 == r2, t][[1]]',
-            # "timePoint1B": 'timePoint1 = t /. Solve[l1 == m1, t][[1]]',
-            # "timePoint1C": 'timePoint1 = t /. Solve[l2 == m2, t][[1]]',
-            # "timePoint2B": 'timePoint1 = t /. Solve[m1 == r1, t][[1]]',
-            # "timePoint2C": 'timePoint1 = t /. Solve[m2 == r2, t][[1]]'
+            "timePoint1A": 'timePoint1A = t /. Solve[l2 == m2, t][[1]]',
+            "timePoint1B": 'timePoint1B = t /. Solve[l1 == m1, t][[1]]',
+            "timePoint2A": 'timePoint2A = t /. Solve[m2 == r2, t][[1]]',
+            "timePoint2B": 'timePoint2B = t /. Solve[m1 == r12, t][[1]]'
         }
     
         results = {}
@@ -500,17 +498,17 @@ def integrals(x0, y0, top, bottoms, points, left):
         
         # Unpacking the results if you still want individual variables
         (timeEnter, timeLeftEnd, timeBottom1, timePoint1,
-         timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA, timePoint1A, timePoint2A) = results.values()
+         timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA, timePoint1A, timePoint1B, timePoint2A, timePoint2B) = results.values()
 
         #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA)
         
         if timeRightEnd is None and timeRightEndA is None:
             timeRightEnd = M('timeRightEnd = Infinity')
-        if timeLeftEnd is None and timeLeftEndA is None:
+        if timeLeftEnd is None and timeLeftEndA is None and timePoint1B is None:
             timeLeftEnd = M('timeLeftEnd = Infinity')
         if timePoint1 is None and timePoint1A is None:
             timePoint1 = M('timePoint1 = Infinity')
-        if timePoint2 is None and timePoint2A is None:
+        if timePoint2 is None and timePoint2A is None and timePoint2B is None:
             timePoint2 = M('timePoint2 = Infinity')
         
         if timeRightEnd is None and timeRightEndA is not None:
@@ -523,16 +521,30 @@ def integrals(x0, y0, top, bottoms, points, left):
             timeBottom1 = M('timeBottom1 = timeLeftEnd')
             results['timeLeftEnd'] = timeLeftEndA
             results['timeBottom1'] = timeLeftEndA
+        # check logic
         if timePoint1 is None and timePoint1A is not None:
             timePoint1 = M('timePoint1 = timePoint1A')
-            timeBottom1 = M('timeBottom1 = timePoint1')
+            timeBottom2 = M('timeBottom2 = timePoint1')
             results['timePoint1'] = timePoint1A
-            results['timeBottom1'] = timePoint1A
+            results['timeBottom2'] = timePoint1A
+        # check logic
+        if timePoint1 is None and timePoint1B is not None:
+            timePoint1 = M('timePoint1 = timePoint1B')
+            timeBottom1 = M('timeBottom1 = timePoint1')
+            results['timePoint1'] = timePoint1B
+            results['timeBottom1'] = timePoint1B
+        # check logic
         if timePoint2 is None and timePoint2A is not None:
             timePoint2 = M('timePoint2 = timePoint2A')
-            timeBottom2 = M('timeBottom2 = timePoint2')
+            timeBottom3 = M('timeBottom3 = timePoint2')
             results['timePoint2'] = timePoint2A
-            results['timeBottom2'] = timePoint2A
+            results['timeBottom3'] = timePoint2A
+        # check logic
+        if timePoint2 is None and timePoint2B is not None:
+            timePoint2 = M('timePoint2 = timePoint2B')
+            timeBottom2 = M('timeBottom2 = timePoint2')
+            results['timePoint2'] = timePoint2B
+            results['timeBottom2'] = timePoint2B
 
         new_vals = [timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA, timePoint1A, timePoint2A]
         # for val in new_vals:
@@ -551,9 +563,8 @@ def integrals(x0, y0, top, bottoms, points, left):
             "timePoint2": 'timePoint2 = t /. Solve[m2 - 1 == 0, t][[1]]',
             "timeLeftEndA": 'timeLeftEndA = t /. Solve[l2 - left == 0, t][[1]]',
             "timePoint2A": 'timePoint2A = t /. Solve[m1 - 1 == 0, t][[1]]',
-            "timePoint1A": 'timePoint1 = t /. Solve[l1 == m2, t][[1]]',
-            # "timePoint1B": 'timePoint1 = t /. Solve[l1 == m1, t][[1]]',
-            # "timePoint1C": 'timePoint1 = t /. Solve[l2 == m2, t][[1]]'
+            "timePoint1A": 'timePoint1 = t /. Solve[l2 == m2, t][[1]]',
+            "timePoint1B": 'timePoint1 = t /. Solve[l1 == m1, t][[1]]'
         }
     
         results = {}
@@ -588,11 +599,18 @@ def integrals(x0, y0, top, bottoms, points, left):
             timeBottom1 = M('timeBottom1 = timeLeftEnd')
             results['timeLeftEnd'] = timeLeftEndA
             results['timeBottom1'] = timeLeftEndA
+        # check logic
         if timePoint1 is None and timePoint1A is not None:
             timePoint1 = M('timePoint1 = timePoint1A')
-            timeBottom1 = M('timeBottom1 = timePoint1')
+            timeBottom2 = M('timeBottom2 = timePoint1')
             results['timePoint1'] = timePoint1A
-            results['timeBottom1'] = timePoint1A
+            results['timeBottom2'] = timePoint1A
+        # check logic
+        if timePoint1 is None and timePoint1B is not None:
+            timePoint1 = M('timePoint1 = timePoint1B')
+            timeBottom1 = M('timeBottom1 = timePoint1')
+            results['timePoint1'] = timePoint1B
+            results['timeBottom1'] = timePoint1B
 
         new_vals = [timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeLeftEndA, timePoint2A, timePoint1A]
         # for val in new_vals:
