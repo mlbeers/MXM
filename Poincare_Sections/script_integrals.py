@@ -53,6 +53,7 @@ from sympy.parsing.sympy_parser import parse_expr
 from sympy import symbols, And, Piecewise, Add, N
 from sympy.core.relational import Relational
 from integration_functions import *
+from mathematica import *
 
 t0 = time()
 
