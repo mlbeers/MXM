@@ -65,7 +65,7 @@ for num in range(10):
     a.append(alphas)
     c.append(Cs)
     e.append(eigenvecs)
-    g.append(generators)
+    g.append(gs)
 print(f'length of alphas: {len(a)}')
 
 # write these values to a file
