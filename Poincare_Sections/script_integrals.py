@@ -1,39 +1,58 @@
-import numpy as np
-from matplotlib import pyplot as plt
-import pandas as pd
-from flatsurf import *
-import os
-import pwlf
-from surface_dynamics.all import *
-from Library import *
-from Library import Section
-import math
-from time import time
-import copy
-from scipy import integrate
-import sympy as sym
-from sympy import Symbol, solve, lambdify
-import traceback
-import dill
+# import numpy as np
+# from matplotlib import pyplot as plt
+# import pandas as pd
+# from flatsurf import *
+# import os
+# import pwlf
+# from surface_dynamics.all import *
+# from Library import *
+# from Library import Section
+# import math
+# from time import time
+# import copy
+# from scipy import integrate
+# import sympy as sym
+# from sympy import Symbol, solve, lambdify
+# import traceback
+# import dill
+# import sys
+# import unittest
+# from surface_dynamics.all import Origami
+# from utils import load_arrays_from_file  # testing
+# import re
+# from sage.all import *
+# from surface_dynamics.all import Origami
+# from surface_dynamics.all import *
+# import numpy as np
+# from fractions import Fraction as frac
+# M = mathematica
+# from IPython.display import display, Math
+# import sympy as sp
+# from sympy.parsing.sympy_parser import parse_expr
+# from mathematica import *
+# from integration_functions import *
+# from sympy import symbols, And, Piecewise, Add, N
+# from sympy.core.relational import Relational
+# t = sp.Symbol('t')
+
 import sys
-import unittest
-from surface_dynamics.all import Origami
-from utils import load_arrays_from_file  # testing
+from Library import *
+from matplotlib import pyplot as plt
+import os
+from Library import *
+from time import time
+import dill
 import re
-from sage.all import *
-from surface_dynamics.all import Origami
-from surface_dynamics.all import *
+import subprocess
 import numpy as np
 from fractions import Fraction as frac
 M = mathematica
 from IPython.display import display, Math
 import sympy as sp
 from sympy.parsing.sympy_parser import parse_expr
-from mathematica import *
-from integration_functions import *
 from sympy import symbols, And, Piecewise, Add, N
 from sympy.core.relational import Relational
-t = sp.Symbol('t')
+from integration_functions import *
 
 t0 = time()
 
