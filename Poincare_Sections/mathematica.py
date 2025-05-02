@@ -1,23 +1,10 @@
 from matplotlib import pyplot as plt
-#import pandas as pd
-#from flatsurf import *
 import os
 from Library import *
-#import math
 from time import time
-#import copy
-#from scipy import integrate
-#from sympy import Symbol, solve, lambdify
-#import traceback
 import dill
-#import sys
-#import unittest
-#from utils import load_arrays_from_file  # testing
 import re
 import subprocess
-#from sage.all import *
-#from surface_dynamics.all import Origami
-#from surface_dynamics.all import *
 import numpy as np
 from fractions import Fraction as frac
 M = mathematica

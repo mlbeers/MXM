@@ -3,10 +3,8 @@ from sage.all import matrix  # testing
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
-#from flatsurf import *
 import pwlf
 import os
-#import math
 from surface_dynamics.all import *
 from surface_dynamics.all import Origami
 from time import time

@@ -7,8 +7,6 @@ from time import time
 from flatsurf import *
 from sage.all import *
 import sys
-#import pandas as pd
-#import re
 import os
 
 t0 = time()
