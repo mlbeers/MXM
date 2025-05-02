@@ -565,7 +565,7 @@ def integrals(x0, y0, top, bottoms, points, left):
         
         # Unpacking the results if you still want individual variables
         (timeEnter, timeLeftEnd, timeBottom1, timePoint1,
-         timeBottom2, timePoint2, timeLeftEndA, timePoint2A, timePoint1A) = results.values()
+         timeBottom2, timePoint2, timeLeftEndA, timePoint2A, timePoint1A, timePoint1B) = results.values()
 
         #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeLeftEndA, timePoint2A)
         
