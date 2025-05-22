@@ -30,7 +30,7 @@ def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
         list_cs.append(c_[j])
         list_es.append(e_[j])
     
-    # Sort a, c, and e together based on the absolute value of the lower-right entry of c
+    # Sort a, c, and e together based on the absolute value of the lower-right + lower-left entry of c
     sorted_pairs = sorted(zip(list_as, list_cs, list_es), key=lambda pair: abs(pair[1][1, 1]) + abs(pair[1][1,0]))
     
     # Unzip back into separate sorted lists
@@ -43,13 +43,9 @@ def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
 
     for i in range(len(sorted_a)):
         # get dimensions of section
-        vecs, x_vals, m0, m1, x0, y0, dx_y, z = setup(
-            sorted_a[i], sorted_c[i], sorted_e[i], vecs0, dx, True)
+        vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
+            sorted_a[i], sorted_c[i], sorted_e[i], vecs0, dx)
         print("i = " + str(i), "j = " + str(j))
-
-        if float(z) <= float(1/50000):
-            print("too small")
-            continue
 
         # create a dataframe with winning vector at certain points in the section
         df = winners(vecs, x_vals, m0, m1, y0, dx, dx_y)
@@ -152,7 +148,7 @@ class DetailsError(Exception):
 
 # For each cusp of the square tiled surface, computes a generating matrix and
 # its eigenvectors, then finds the shortest saddle connection in the direction # of the eigenvector by producing a big list of saddle connections and then checking all of them.
-#
+# Naming convention: C0 is C^-1, S0 is S^-1
 # inputs:
 #   perm: a permutation that defines a square tiled surface
 #   vecs0: list of saddle connections on this STS to check (this is large)
@@ -181,7 +177,7 @@ def poincare_setup(perm, vecs0, generators):
         matrix_string = f"A = {{{{{a}, {b}}}, {{{c}, {d}}}}}"
         A = M(matrix_string)
 
-        # get eigenvalues
+        # get eigenvalues using mathematica to get higher precision
         eigenvalues = M('eigenvalues = Eigenvalues[A]')
         eig1 = int(M('eigenvalues[[1]]'))
         eig2 = int(M('eigenvalues[[2]]'))
@@ -197,7 +193,7 @@ def poincare_setup(perm, vecs0, generators):
 
         # get eigenvectors
         eigenvectors = M('eigenvectors = Eigenvectors[A]')
-        # make all the entries integers for easier scaling and grab the first one (matrix isnt diagonlaizable to there is only one unique vector)
+        # make all the entries integers for easier scaling and grab the first one (matrix isnt diagonlaizable so there is only one unique vector)
         scaledEigenvector = M('scaledEigenvectors = Map[LCM @@ Denominator[#]*# &, eigenvectors][[1]]')
         # get x and y-coords
         scaled_x = int(scaledEigenvector.sage()[0])
@@ -206,7 +202,7 @@ def poincare_setup(perm, vecs0, generators):
         vec = np.array([[scaled_x], [scaled_y]])
         eigenvecs.append(vec)
 
-    # find the magnitude, slope, x-direction, and y-direction of each eigenvector
+    # use numpy to parallelize calculations over vecs0 which is a large list of vectors (around 2.3 million)
     def get_magnitude_slope_sign(vectors):
         # Stack the list of 2D numpy arrays into a 2D array
         vectors = np.hstack(vectors)  # Concatenate into a 2D array
@@ -241,7 +237,7 @@ def poincare_setup(perm, vecs0, generators):
         valid_saddles = np.where(slope_matches & x_sign_matches & y_sign_matches)[0]
 
         if len(valid_saddles) == 0:
-            raise DetailsError(f"No saddle vec for eigenvector {eigenvecs[i]}")
+            raise DetailsError(f"No saddle connection found for eigenvector {eigenvecs[i]} in provided vectors data")
 
         # Select saddle with smallest magnitude
         smallest_idx = valid_saddles[np.argmin(saddle_mags[valid_saddles])]
@@ -276,7 +272,8 @@ def poincare_setup(perm, vecs0, generators):
     
         matrix_string = f"A = {{{{{a}, {b}}}, {{{c}, {d}}}}}"
         A = M(matrix_string)
-    
+
+        # S0 is pre-scaled C^-1 matrix, S*G*S0 = J
         S0, J = M('{S0, J} = JordanDecomposition[A]')
         S = M('S = Inverse[S0]')
 
@@ -322,12 +319,10 @@ def poincare_setup(perm, vecs0, generators):
         # find factor needed to send (1,0) to the saddle connection
         x_ = (c0@np.array([[1],[0]]))[0][0]
         y_ = (c0@np.array([[1],[0]]))[1][0]
-        mult0 = saddle_vec[0][0]/x_
-        mult1 = saddle_vec[1][0]/y_
         if x_ != 0:
-            mult = mult0
+            mult = saddle_vec[0][0]/x_
         elif y_ != 0:
-            mult = mult1
+            mult = saddle_vec[1][0]/y_
         else:
             raise ValueError("Both coordinates in saddle_vec are zero. Division by zero is not defined.")
 
@@ -344,7 +339,7 @@ def poincare_setup(perm, vecs0, generators):
         c_1 = int(J_new[1][0])
         d_1 = int(J_new[1][1])
 
-        # ensure its correclt formatted
+        # ensure its correctly formatted
         if a_1 != 1 or c_1 != 0 or d_1 != 1:
             raise ValueError(f"wrong J_new: {J_new}")
         
@@ -376,6 +371,7 @@ def try_poincare_setup(sts_data, trys):
     return details
 
 # compute the dimensions of the Poincare section
+# using the section vector guarantees a finite number of winners: https://arxiv.org/abs/2102.10069v2
 
 # input:
     # alpha: alpha value for the section
@@ -383,7 +379,6 @@ def try_poincare_setup(sts_data, trys):
     # eig: eigenvalue for the section
     # vecs0: original set up saddle connections for the STS
     # dx: x-spacing used for point sampling in the function "winners"
-    # improved: boolean variable, when True, will compute the dimensions of the section used the "improved method" which ensures the section will not have infinite subdivisions of winning saddle connections
 
 #output:
     # vecs: new vectors to be used for computations, acted on by the c-matrix for the given cusp
@@ -393,9 +388,8 @@ def try_poincare_setup(sts_data, trys):
     # x0: x component of the "section" vector
     # y0: y component of the "section" vector
     # dx_y: y-spacing used for point sampling in the function "winners"
-    # z: same as y0, used for testing
 
-def setup(alpha, c, eig, vecs0, dx, improved=True):
+def setup(alpha, c, eig, vecs0, dx):
     x_vals = np.arange(dx, 1, dx)
     # create list of new vectors
     vecs1 = c@vecs0
@@ -428,23 +422,16 @@ def setup(alpha, c, eig, vecs0, dx, improved=True):
     # assign components to variables
     x0 = sec_vec[0][0]
     y0 = sec_vec[1][0]
-    z = y0
 
     # slopes of top and bottom lines of section
-    if improved == True:
-        m0 = -x0/y0
-        m1 = -(x0/y0 + alpha)
-    else:
-        m0 = 0
-        m1 = -alpha
-        x0 = 0
-        y0 = 1
+    m0 = -x0/y0
+    m1 = -(x0/y0 + alpha)
 
     # defines vertical step when finding winners
     global dx_y
     dx_y = (m0 - m1) * dx
 
-    return vecs, x_vals, m0, m1, x0, y0, dx_y, z
+    return vecs, x_vals, m0, m1, x0, y0, dx_y
 
 
 # It first computes winning vectors from all possible vectors on points on the
@@ -477,7 +464,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     vecs1 = np.hstack([arr.astype(float) for arr in vecs0])  # Ensure all are float64
     vecs = np.hstack(vecs0)  # Keep the original structure for output if needed
 
-    # top edge
+    # compute winner for top edge
     t0 = time()
     for a in np.arange(dz, 1, dz):
         # Matrix stays outside the inner loop
