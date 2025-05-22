@@ -19,7 +19,7 @@ index = int(sys.argv[2])
 # list of permuatations
 permutations = perms_list(n_squares)
 # generate saddle connections on surface and save file
-name = "vecs" + str(n_squares) + "-" + str(index) + ".npy"
+name = "vecs" + str(n_squares) + "_" + str(index) + ".npy"
 
 vecs0 = generate_vectors(permutations[index], 2000)
 save_arrays_to_file(os.path.join("vecs", name), vecs0)

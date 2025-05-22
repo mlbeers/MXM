@@ -35,16 +35,16 @@ index = int(sys.argv[2])
 
 dx = float(sys.argv[3])
 
-os.makedirs(os.path.join("results", f"{n_squares} - {index}"), exist_ok=True)  # Ensure directory exists
+os.makedirs(os.path.join("results", f"{n_squares}_{index}"), exist_ok=True)  # Ensure directory exists
 
 permutations = perms_list(n_squares)
 
 perm = permutations[index]
 plot = perm.plot()
-plot.save(os.path.join("results", f"{n_squares} - {index}", "permutation.png"))
+plot.save(os.path.join("results", f"{n_squares}_{index}", "permutation.png"))
 
 # get a list of saddle connections
-vec_file = "vecs" + str(n_squares) + "-" + str(index) + ".npy"
+vec_file = "vecs" + str(n_squares) + "_" + str(index) + ".npy"
 vecs0 = load_arrays_from_file(os.path.join("vecs", vec_file))
 
 print(f'number of vecs: {len(vecs0)}')
@@ -70,7 +70,7 @@ print(f'length of alphas: {len(a)}')
 
 # write these values to a file
 data = [a, c, e, g]
-with open(os.path.join("results", f"{n_squares} - {index}", "setup.dill"), 'wb') as f:
+with open(os.path.join("results", f"{n_squares}_{index}", "setup.dill"), 'wb') as f:
     dill.dump(data, f)
 
 # get the number of cores to be used in computations and the number of loops needed to complete each cusp

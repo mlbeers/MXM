@@ -28,13 +28,13 @@ def run_integrals(n_squares, index, a, perm):
     for j in range(len(a[0])):
         print(f"section {j}")
     
-        with open(os.path.join("results", f"{n_squares} - {index}", f"secs_integrals - {j}.dill"), 'rb') as f:
+        with open(os.path.join("results", f"{n_squares}_{index}", f"secs_integrals_{j}.dill"), 'rb') as f:
             secs2 = dill.load(f)  
     
         subsections = format_subsections_for_mathematica(secs2)
     
         # Create directory for storing LaTeX outputs
-        results_dir = os.path.join("results", f"{n_squares} - {index}", f"cusp - {j}")
+        results_dir = os.path.join("results", f"{n_squares}_{index}", f"cusp_{j}")
         os.makedirs(results_dir, exist_ok=True)
     
         # LaTeX file path
@@ -144,7 +144,7 @@ def run_integrals(n_squares, index, a, perm):
     veech_index = int(re.findall(r'index (\d+)', str(perm.veech_group()))[0])
     # numeric
     target = M(f'target = N[(Pi^2/6)*{veech_index}]')
-    save_path = os.path.join("results", f"{n_squares} - {index}", "coVolume.txt")
+    save_path = os.path.join("results", f"{n_squares}_{index}", "coVolume.txt")
     with open(save_path, "w") as file:
         file.write(f"{totalVol}\n\n\n")
         file.write(f"rounded coVol: {totalVol2}\n")
@@ -152,10 +152,10 @@ def run_integrals(n_squares, index, a, perm):
     boundary_points = [sp.Symbol("Infinity") if bp == "Infinity" else sp.simplify(bp) for bp in boundary_points]
     sorted_numbers = sorted(boundary_points, key=lambda x: float(x) if x != sp.Symbol("Infinity") else float('inf'))
 
-    with open(os.path.join("results", f"{n_squares} - {index}", "piecewise_list.dill"), 'wb') as f:
+    with open(os.path.join("results", f"{n_squares}_{index}", "piecewise_list.dill"), 'wb') as f:
         dill.dump(list_functions, f)
 
-    with open(os.path.join("results", f"{n_squares} - {index}", "boundary_points.dill"), 'wb') as f:
+    with open(os.path.join("results", f"{n_squares}_{index}", "boundary_points.dill"), 'wb') as f:
         dill.dump(sorted_numbers, f)
     
     return list_functions, sorted_numbers
@@ -391,12 +391,12 @@ def graph_piece(f, cs, n_squares, index, j, i):
     
     # Show plot
     if j != -1:
-        save_path = os.path.join("results", f"{n_squares} - {index}", f"cusp - {j}")
+        save_path = os.path.join("results", f"{n_squares}_{index}", f"cusp_{j}")
         os.makedirs(save_path, exist_ok=True)
         # Save the plot
-        plt.savefig(os.path.join(save_path, f"graph - {i}.png"))
+        plt.savefig(os.path.join(save_path, f"graph_{i}.png"))
     else:
-        save_path = os.path.join("results", f"{n_squares} - {index}", f"Final_graph.png")
+        save_path = os.path.join("results", f"{n_squares}_{index}", f"Final_graph.png")
         plt.savefig(save_path)
     
     # Show the plot
@@ -471,7 +471,7 @@ def integrals(x0, y0, top, bottoms, points, left):
             "timePoint1A": 'timePoint1A = t /. Solve[l2 == m2, t][[1]]',
             "timePoint1B": 'timePoint1B = t /. Solve[l1 == m1, t][[1]]',
             "timePoint2A": 'timePoint2A = t /. Solve[m2 == r2, t][[1]]',
-            "timePoint2B": 'timePoint2B = t /. Solve[m1 == r12, t][[1]]'
+            "timePoint2B": 'timePoint2B = t /. Solve[m1 == r1, t][[1]]'
         }
     
         results = {}

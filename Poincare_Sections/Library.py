@@ -60,7 +60,7 @@ def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
             print(error)
             continue
         df.to_csv(os.path.join(
-            "results", f"{n_squares} - {index}", f"df - {j}.csv"), index=False)
+            "results", f"{n_squares}_{index}", f"df_{j}.csv"), index=False)
 
         # make section object that define winning vector and line equations for boundaries of subsections
         sec_list = sec_setup(df, dx_y)
@@ -68,10 +68,10 @@ def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
         sec_list2, vec_order, vec_dict = sec_setup2(df, dx_y)
         secs2 = sec_comp2(df, sec_list2, vec_order, vec_dict, dx, dx_y, m1, y0)
         
-        with open(os.path.join("results", f"{n_squares} - {index}", "secs - " + str(j) + ".dill"), 'wb') as f:
+        with open(os.path.join("results", f"{n_squares}_{index}", "secs_" + str(j) + ".dill"), 'wb') as f:
             dill.dump(secs, f)
 
-        with open(os.path.join("results", f"{n_squares} - {index}", "secs_integrals - " + str(j) + ".dill"), 'wb') as f:
+        with open(os.path.join("results", f"{n_squares}_{index}", "secs_integrals_" + str(j) + ".dill"), 'wb') as f:
             dill.dump(secs2, f)
 
         times = time_comp(secs)
@@ -765,7 +765,7 @@ def plot(df, vecs, c, j, n_squares, index, test=False):
         #take out
         plt.show()
         plt.savefig(os.path.join(
-            "results", f"{n_squares} - {index}", "section - " + str(j)))
+            "results", f"{n_squares}_{index}", "section_" + str(j)))
     # for troubleshooting
     if test == True:
         # display vectors on the right edge of the section from top to bottom
@@ -1134,7 +1134,7 @@ def pdf(vals, prob_times, dx, n_squares, index, j, test=False):
         print(prob_times)
     plt.show()
     plt.savefig(os.path.join(
-        "results", f"{n_squares} - {index}", f"pdf - {j}"))
+        "results", f"{n_squares}_{index}", f"pdf_{j}"))
     plt.close(fig)
     return pdf
 
@@ -1211,7 +1211,7 @@ def load_arrays_from_file(file_path):
 
 def read_df(n_squares, index, cusp):
     df = pd.read_csv(os.path.join(
-        "results", f"{n_squares} - {index}", "df - " + str(cusp)))
+        "results", f"{n_squares}_{index}", "df_" + str(cusp)))
 
     def read_vec(s):
         s = s.replace("[", "")

@@ -65,7 +65,7 @@ perm = perms_list(n_squares)[index]
 dx = 0.0005
 
 # get the alphas
-with open(os.path.join("results", f"{n_squares} - {index}", "setup.dill"), 'rb') as f:
+with open(os.path.join("results", f"{n_squares}_{index}", "setup.dill"), 'rb') as f:
     loaded_data = dill.load(f)
 a,_,_,_ = loaded_data
 
@@ -84,7 +84,7 @@ interval_list[-1][1] = interval_list[-1][0] + 10
 
 graph_piece(combined_pw, interval_list, n_squares, index, -1, 50)
 
-final_dir = os.path.join("results", f"{n_squares} - {index}")
+final_dir = os.path.join("results", f"{n_squares}_{index}")
 os.makedirs(final_dir, exist_ok=True)  # Ensure directory exists
 
 with open(os.path.join(final_dir, f"final_eq.dill"), 'wb') as file:
