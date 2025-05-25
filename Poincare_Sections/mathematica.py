@@ -18,7 +18,6 @@ from integration_functions import *
 t = sp.Symbol('t')
 
 # computations originally done with notebooks in Mathematica/ directory, now automated with python
-# limitation exists if list "bottoms" has 4 or more entries, need to add/modify code to handle that instance
 def run_integrals(n_squares, index, a, perm):
     boundary_points = set()
     list_functions = []
@@ -46,24 +45,16 @@ def run_integrals(n_squares, index, a, perm):
             latex_file.write("\\documentclass{article}\n")
             latex_file.write("\\usepackage{amsmath}\n")
             latex_file.write("\\begin{document}\n\n")
-    
+
             for i, subsection in enumerate(subsections):
-                print(subsection)
-                if len(subsection) == 5:
-                    x0, y0, top, bottom1, left = subsection
-                    bottoms = [bottom1]
-                    points = []
-                elif len(subsection) == 7:
-                    x0, y0, top, bottom1, bottom2, point1, left = subsection
-                    bottoms = [bottom1, bottom2]
-                    points = [point1]
-                elif len(subsection) == 9:
-                    x0, y0, top, bottom1, bottom2, bottom3, point1, point2, left = subsection
-                    bottoms = [bottom1, bottom2, bottom3]
-                    points = [point1, point2]
+                x0 = subsection["x0"]
+                y0 = subsection["y0"]
+                top = subsection["top"]
+                bottoms = subsection["bottoms"]
+                points = subsection["points"]
     
-                eqs, totalVol = integrals(x0, y0, top, bottoms, points, left)
-    
+                eqs, totalVol = integrals(x0, y0, top, bottoms, points)
+        
                 # Convert equation to LaTeX format
                 expression_string = repr(eqs[1])
                 # converting from Mathematica to sympy notation
@@ -72,23 +63,23 @@ def run_integrals(n_squares, index, a, perm):
                 for c in cs:
                     for c_ in c:
                         boundary_points.add(c_)
-
+    
                 # creating piecewise function to be saved as a dill file, the true equation
                 eq_tuples = []
                 for eq, cond in zip(es, cs):
                     # converting from Mathematica to sympy notation
                     cleaned_eq = (parse_expr(eq, local_dict={'t': t, 'sp': sp}), sp.And(sp.simplify(cond[0]) <= t, t < sp.simplify(cond[1])))
                     eq_tuples.append(cleaned_eq)
-
+    
                 # save equation in sympy format from mathematica format
                 f = sp.Piecewise(*eq_tuples)
                 with open(os.path.join(results_dir, f"equation_{i}.dill"), 'wb') as file:
                     dill.dump(f, file)
-
+    
                 # creating piecewise function for graphing, accounting for cutting off a bound of Infinity
                 eq_tuples = []
                 if cs[-1][1] == "Infinity":
-                    cs[-1][1] = max(int(float(frac(cs[-1][0])) + 10), 20)
+                    cs[-1][1] = str(max(int(float(frac(cs[-1][0])) + 10), 20))
                     print(f"cs for graph: {cs}")
                     for eq, cond in zip(es, cs):
                         eq_tuples.append((
@@ -108,7 +99,7 @@ def run_integrals(n_squares, index, a, perm):
     
                 # Generate graph for visualization
                 graph_piece(f_graph, cs, n_squares, index, j, i)
-    
+        
             # End LaTeX document
             latex_file.write("\n\\end{document}\n")
     
@@ -209,17 +200,16 @@ def create_combined_piecewise(piecewise_list, boundary_points):
 def format_subsections_for_mathematica(section):
     outputs = []
     for subsection in section:
-        output = []
-        output.append("x0 = " + str(subsection.vec[0][0]))
-        output.append("y0 = " + str(subsection.vec[1][0]))
-        output.append("top = " + str(subsection.top[0]))
+        output = {}
+        output["bottoms"] = []
+        output["points"] = []
+        output["x0"] = "x0 = " + str(subsection.vec[0][0])
+        output["y0"] = "y0 = " + str(subsection.vec[1][0])
+        output["top"] = "top = " + str(subsection.top[0])
         for i in range(len(subsection.bottom)):
-            output.append("bottom" + str(i+1) + " = " + str(subsection.bottom[i]))
+            output["bottoms"].append("bottom" + str(i+1) + " = " + str(subsection.bottom[i]))
         for i in range(len(subsection.points_bottom)):
-            if i == 0:
-                continue
-            output.append("point" + str(i) + " = " + str(subsection.points_bottom[i]))
-        output.append("left = " + str(subsection.points_bottom[0]))
+            output["points"].append("point" + str(i) + " = " + str(subsection.points_bottom[i]))
         outputs.append(output)
     return outputs
 
@@ -405,266 +395,100 @@ def graph_piece(f, cs, n_squares, index, j, i):
     # Clear the figure to avoid overlapping plots in future calls
     plt.clf()
 
-def integrals(x0, y0, top, bottoms, points, left):
-    #M('ClearAll["Global`*"]')
+def integrals(x0, y0, top, bottoms, points):
+    # dictionary to hold values for section
+    values = {}
 
-    x0 = M(f"{x0}")
-    y0 = M(f"{y0}")
+    values["x0"] = M(f"{x0}")
+    values["y0"] = M(f"{y0}")
     
-    top = M(f"{top}")
-    
-    bottom1 = M(f"{bottoms[0]}")
-    try:
-        bottom2 = M(f"{bottoms[1]}")
-    except:
-        bottom2 = None
-    try:
-        bottom3 = M(f"{bottoms[2]}")
-    except:
-        bottom3 = None
+    values["top"] = M(f"{top}")
+
+    for i in range(len(bottoms)):
+        values[f"bottom{i+1}"] = M(f"{bottoms[i]}")
+    for i in range(len(points)):
+        values[f"point{i}"] = M(f"{points[i]}") 
+
+    # Assumes all the sections have endpoints at x = 1
+    values[f"point{len(points)}"] = M(f"point{len(points)} = 1")
         
-    try:
-        point1 = M(f"{points[0]}")
-    except:
-        point1 = None
-    try:
-        point2 = M(f"{points[1]}")
-    except:
-        point2 = None
-        
-    left = M(f"{left}")
     
     func = M('func = 1/(t*x) - x0/y0*x')
     funct = M('funct = y0/(x*(x0*x + y0*y))')
-    
-    if bottom2 is None:
-        point1 = M('point1 = 1')
-    elif bottom3 is None:
-        point2 = M('point2 = 1')
-    
-    symbolicZeros = M('symbolicZeros = Solve[bottom1 - func == 0, x]')
-    l1 = M('l1 = x /. symbolicZeros[[1]]')
-    l2 = M('l2 = x /. symbolicZeros[[2]]')
-    
-    if bottom2 is not None:
-        symbolicZeros = M('symbolicZeros = Solve[bottom2 - func == 0, x]')
-        m1 = M('m1 = x /. symbolicZeros[[1]]')
-        m2 = M('m2 = x /. symbolicZeros[[2]]')
-    
-    if bottom3 is not None:
-        symbolicZeros = M('symbolicZeros = Solve[bottom3 - func == 0, x]')
-        r1 = M('r1 = x /. symbolicZeros[[1]]')
-        r2 = M('r2 = x /. symbolicZeros[[2]]')
-    
-    if bottom1 is not None and bottom2 is not None and bottom3 is not None:
-        expressions = {
-            "timeEnter": 'timeEnter = t /. Solve[y0 - t == 0, t][[1]]',
-            "timeLeftEnd": 'timeLeftEnd = t /. Solve[l1 - left == 0, t][[1]]',
-            "timeBottom1": 'timeBottom1 = t /. Solve[l2 - l1 == 0, t][[1]]',
-            "timePoint1": 'timePoint1 = t /. Solve[l2 == m1, t][[1]]',
-            "timeBottom2": 'timeBottom2 = t /. Solve[m2 - m1 == 0, t][[1]]',
-            "timePoint2": 'timePoint2 = t /. Solve[m2 == r1, t][[1]]',
-            "timeBottom3": 'timeBottom3 = t /. Solve[r2 - r1 == 0, t][[1]]',
-            "timeRightEnd": 'timeRightEnd = t /. Solve[r2 - 1 == 0, t][[1]]',
-            "timeLeftEndA": 'timeLeftEndA = t /. Solve[l2 - left == 0, t][[1]]',
-            "timeRightEndA": 'timeRightEndA = t /. Solve[r1 - 1 == 0, t][[1]]',
-            "timePoint1A": 'timePoint1A = t /. Solve[l2 == m2, t][[1]]',
-            "timePoint1B": 'timePoint1B = t /. Solve[l1 == m1, t][[1]]',
-            "timePoint2A": 'timePoint2A = t /. Solve[m2 == r2, t][[1]]',
-            "timePoint2B": 'timePoint2B = t /. Solve[m1 == r1, t][[1]]'
-        }
-    
-        results = {}
-        for key, expr in expressions.items():
-            try:
-                results[key] = (M(expr))
-                print(f'{key}: {results[key]}')
-            except Exception:
-                results[key] = None
-                print(f'{key}: None')
-        
-        # Unpacking the results if you still want individual variables
-        (timeEnter, timeLeftEnd, timeBottom1, timePoint1,
-         timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA, timePoint1A, timePoint1B, timePoint2A, timePoint2B) = results.values()
 
-        #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA)
-        
-        if timeRightEnd is None and timeRightEndA is None:
-            timeRightEnd = M('timeRightEnd = Infinity')
-        if timeLeftEnd is None and timeLeftEndA is None and timePoint1B is None:
-            timeLeftEnd = M('timeLeftEnd = Infinity')
-        if timePoint1 is None and timePoint1A is None:
-            timePoint1 = M('timePoint1 = Infinity')
-        if timePoint2 is None and timePoint2A is None and timePoint2B is None:
-            timePoint2 = M('timePoint2 = Infinity')
-        
-        if timeRightEnd is None and timeRightEndA is not None:
-            timeRightEnd = M('timeRightEnd = timeRightEndA')
-            timeBottom3 = M('timeBottom3 = timeRightEnd')
-            results['timeRightEnd'] = timeRightEndA
-            results['timeBottom3'] = timeRightEndA
-        if timeLeftEnd is None and timeLeftEndA is not None:
-            timeLeftEnd = M('timeLeftEnd = timeLeftEndA')
-            timeBottom1 = M('timeBottom1 = timeLeftEnd')
-            results['timeLeftEnd'] = timeLeftEndA
-            results['timeBottom1'] = timeLeftEndA
-        # check logic
-        if timePoint1 is None and timePoint1A is not None:
-            timePoint1 = M('timePoint1 = timePoint1A')
-            timeBottom2 = M('timeBottom2 = timePoint1')
-            results['timePoint1'] = timePoint1A
-            results['timeBottom2'] = timePoint1A
-        # check logic
-        if timePoint1 is None and timePoint1B is not None:
-            timePoint1 = M('timePoint1 = timePoint1B')
-            timeBottom1 = M('timeBottom1 = timePoint1')
-            results['timePoint1'] = timePoint1B
-            results['timeBottom1'] = timePoint1B
-        # check logic
-        if timePoint2 is None and timePoint2A is not None:
-            timePoint2 = M('timePoint2 = timePoint2A')
-            timeBottom3 = M('timeBottom3 = timePoint2')
-            results['timePoint2'] = timePoint2A
-            results['timeBottom3'] = timePoint2A
-        # check logic
-        if timePoint2 is None and timePoint2B is not None:
-            timePoint2 = M('timePoint2 = timePoint2B')
-            timeBottom2 = M('timeBottom2 = timePoint2')
-            results['timePoint2'] = timePoint2B
-            results['timeBottom2'] = timePoint2B
+    print(values)
+    expressions = {}
+    expressions["timeEnter"] = 'timeEnter = t /. Solve[y0 - t == 0, t][[1]]'
+    
+    # find the points of intersection of each bottom segment with the parabola and solve for the times where the parabola intersects different points of the line segment
+    for i in range(1, len(bottoms) + 1):
+        symbolicZeros = M(f'symbolicZeros = Solve[bottom{i} - func == 0, x]')
+        values[f"inter{i}$1"] = M(f'inter{i}$1 = x /. symbolicZeros[[1]]')
+        values[f"inter{i}$2"] = M(f'inter{i}$2 = x /. symbolicZeros[[2]]')
+        if i == 1:
+            expressions["timePoint0"] = 'timePoint0 = t /. Solve[inter1$1 == point0, t][[1]]'
+            expressions["timePoint0A"] = 'timePoint0A = t /. Solve[inter1$2 == point0, t][[1]]'
+        if i != len(bottoms):
+            expressions[f"timePoint{i}"] = f'timePoint{i} = t /. Solve[inter{i}$2 == inter{i+1}$1, t][[1]]'
+            expressions[f"timePoint{i}A"] = f'timePoint{i}A = t /. Solve[inter{i}$2 == inter{i+1}$2, t][[1]]'
+            expressions[f"timePoint{i}B"] = f'timePoint{i}B = t /. Solve[inter{i}$1 == inter{i+1}$1, t][[1]]'
+        else:
+            expressions[f"timePoint{i}"] = f'timePoint{i} = t /. Solve[inter{i}$2 == 1, t][[1]]'
+            expressions[f"timePoint{i}A"] = f'timePoint{i}A = t /. Solve[inter{i}$1 == 1, t][[1]]'
+        expressions[f"timeBottom{i}"] = f'timeBottom{i} = t /. Solve[inter{i}$1 - inter{i}$2 == 0, t][[1]]'
 
-        new_vals = [timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeBottom3, timeRightEnd, timeLeftEndA, timeRightEndA, timePoint1A, timePoint2A]
-        # for val in new_vals:
-        #     try:
-        #         print(float(val))
-        #     except:
-        #         print(val)
+    # create these time variables in mathematica to be used later
+    results = {}
+    for key, expr in expressions.items():
+        try:
+            results[key] = (M(expr))
+            print(f'{key}: {results[key]}')
+        except Exception:
+            results[key] = None
+            print(f'{key}: None')
+
+    # look at the 'alternate' times to account for edge cases to get correct times and document in mathematica
+    for i in range(0, len(bottoms) + 1):
+        if i == 0:
+            if results[f"timePoint{i}"] is None and results[f"timePoint{i}A"] is None:
+                results[f"timePoint{i}"] = M(f"timePoint{i} = Infinity")
+
+            if results[f"timePoint{i}"] is None and results[f"timePoint{i}A"] is not None:
+                results[f"timePoint{i}"] = M(f'timePoint{i} = timePoint{i}A')
+                results[f"timeBottom{i+1}"] = M(f'timeBottom{i+1} = timePoint{i}')
+
+        elif i == len(bottoms):
+            if results[f"timePoint{i}"] is None and results[f"timePoint{i}A"] is None:
+                results[f"timePoint{i}"] = M(f"timePoint{i} = Infinity")
+
+            if results[f"timePoint{i}"] is None and results[f"timePoint{i}A"] is not None:
+                results[f"timePoint{i}"] = M(f'timePoint{i} = timePoint{i}A')
+                results[f"timeBottom{i}"] = M(f'timeBottom{i} = timePoint{i}')
                 
-    elif bottom1 is not None and bottom2 is not None and bottom3 is None:
-        expressions = {
-            "timeEnter": 'timeEnter = t /. Solve[y0 - t == 0, t][[1]]',
-            "timeLeftEnd": 'timeLeftEnd = t /. Solve[l1 - left == 0, t][[1]]',
-            "timeBottom1": 'timeBottom1 = t /. Solve[l2 - l1 == 0, t][[1]]',
-            "timePoint1": 'timePoint1 = t /. Solve[l2 == m1, t][[1]]',
-            "timeBottom2": 'timeBottom2 = t /. Solve[m2 - m1 == 0, t][[1]]',
-            "timePoint2": 'timePoint2 = t /. Solve[m2 - 1 == 0, t][[1]]',
-            "timeLeftEndA": 'timeLeftEndA = t /. Solve[l2 - left == 0, t][[1]]',
-            "timePoint2A": 'timePoint2A = t /. Solve[m1 - 1 == 0, t][[1]]',
-            "timePoint1A": 'timePoint1 = t /. Solve[l2 == m2, t][[1]]',
-            "timePoint1B": 'timePoint1 = t /. Solve[l1 == m1, t][[1]]'
-        }
-    
-        results = {}
-        for key, expr in expressions.items():
-            try:
-                results[key] = (M(expr))
-                print(f'{key}: {results[key]}')
-            except Exception:
-                results[key] = None
-                print(f'{key}: None')
+        else:
+            if results[f"timePoint{i}"] is None and results[f"timePoint{i}A"] is None and results[f"timePoint{i}B"] is None:
+                results[f"timePoint{i}"] = M(f"timePoint{i} = Infinity")
+
+            if results[f"timePoint{i}"] is None and results[f"timePoint{i}A"] is not None:
+                results[f"timePoint{i}"] = M(f'timePoint{i} = timePoint{i}A')
+                results[f"timeBottom{i+1}"] = M(f'timeBottom{i+1} = timePoint{i}')
         
-        # Unpacking the results if you still want individual variables
-        (timeEnter, timeLeftEnd, timeBottom1, timePoint1,
-         timeBottom2, timePoint2, timeLeftEndA, timePoint2A, timePoint1A, timePoint1B) = results.values()
+            if results[f"timePoint{i}"] is None and results[f"timePoint{i}B"] is not None:
+                results[f"timePoint{i}"] = M(f'timePoint{i} = timePoint{i}B')
+                results[f"timeBottom{i}"] = M(f'timeBottom{i} = timePoint{i}')
 
-        #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeLeftEndA, timePoint2A)
-        
-        if timePoint2 is None and timePoint2A is None:
-            timePoint2 = M('timePoint2 = Infinity')
-        if timeLeftEnd is None and timeLeftEndA is None:
-            timeLeftEnd = M('timeLeftEnd = Infinity')
-        if timePoint1 is None and timePoint1A is None:
-            timePoint1 = M('timePoint1 = Infinity')
-            
-        if timePoint2 is None and timePoint2A is not None:
-            timePoint2 = M('timePoint2 = timePoint2A')
-            timeBottom2 = M('timeBottom2 = timePoint2A')
-            results['timePoint2'] = timePoint2A
-            results['timeBottom2'] = timePoint2A
-        if timeLeftEnd is None and timeLeftEndA is not None:
-            timeLeftEnd = M('timeLeftEnd = timeLeftEndA')
-            timeBottom1 = M('timeBottom1 = timeLeftEnd')
-            results['timeLeftEnd'] = timeLeftEndA
-            results['timeBottom1'] = timeLeftEndA
-        # check logic
-        if timePoint1 is None and timePoint1A is not None:
-            timePoint1 = M('timePoint1 = timePoint1A')
-            timeBottom2 = M('timeBottom2 = timePoint1')
-            results['timePoint1'] = timePoint1A
-            results['timeBottom2'] = timePoint1A
-        # check logic
-        if timePoint1 is None and timePoint1B is not None:
-            timePoint1 = M('timePoint1 = timePoint1B')
-            timeBottom1 = M('timeBottom1 = timePoint1')
-            results['timePoint1'] = timePoint1B
-            results['timeBottom1'] = timePoint1B
-
-        new_vals = [timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeBottom2, timePoint2, timeLeftEndA, timePoint2A, timePoint1A]
-        # for val in new_vals:
-        #     try:
-        #         #print(float(val))
-        #     except:
-        #         #print(val)
-    
-    elif bottom1 is not None and bottom2 is None and bottom3 is None:
-        expressions = {
-            "timeEnter": 'timeEnter = t /. Solve[y0 - t == 0, t][[1]]',
-            "timeLeftEnd": 'timeLeftEnd = t /. Solve[l1 - left == 0, t][[1]]',
-            "timeBottom1": 'timeBottom1 = t /. Solve[l2 - l1 == 0, t][[1]]',
-            "timePoint1": 'timeRightEnd = t /. Solve[l2 - 1 == 0, t][[1]]',
-            "timeLeftEndA": 'timeLeftEndA = t /. Solve[l2 - left == 0, t][[1]]',
-            "timePoint1A": 'timePoint1A = t /. Solve[l1 - 1 == 0, t][[1]]'
-        }
-    
-        results = {}
-        for key, expr in expressions.items():
-            try:
-                results[key] = (M(expr))
-                print(f'{key}: {results[key]}')
-            except Exception:
-                results[key] = None
-                print(f'{key}: None')
-        
-        # Unpacking the results if you still want individual variables
-        (timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeLeftEndA, timePoint1A) = results.values()
-
-        #print(timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeLeftEndA, timePoint1A)
-        
-        if timePoint1 is None and timePoint1A is None:
-            timePoint1 = M('timePoint1 = Infinity')
-        if timeLeftEnd is None and timeLeftEndA is None:
-            timeLeftEnd = M('timeLeftEnd = Infinity')
-
-        if timePoint1 is None and timePoint1A is not None:
-            timePoint1 = M('timePoint1 = timePoint1A')
-            timeBottom1 = M('timeBottom1 = timePoint1')
-            results['timePoint1'] = timePoint1A
-            results['timeBottom1'] = timePoint1A
-        if timeLeftEnd is None and timeLeftEndA is not None:
-            timeLeftEnd = M('timeLeftEnd = timeLeftEndA')
-            timeBottom1 = M('timeBottom1 = timeLeftEnd')
-            results['timeLeftEnd'] = timeLeftEndA
-            results['timeBottom1'] = timeLeftEndA
-
-        new_vals = [timeEnter, timeLeftEnd, timeBottom1, timePoint1, timeLeftEndA, timePoint1A]
-        # for val in new_vals:
-        #     try:
-        #         #print(float(val))
-        #     except:
-        #         #print(val)
-    else:
-        raise ValueError("section defined improperly")
-    
+    # base function where the parabola intersects the top portion of the section
     try:
         f1 = M('f1 = Simplify[D[Integrate[1, {x, y0/t, 1}, {y, func, top}], t]]')
     except:
         f1 = -1
+    # base function where the parabola intersects the top portion OUTSIDE of the section
     try:
-        fL = M('fL = Simplify[D[Integrate[1, {x, left, 1}, {y, func, top}], t]]')
+        fL = M('fL = Simplify[D[Integrate[1, {x, point0, 1}, {y, func, top}], t]]')
     except:
         fL = -1
-        #print("no fL")
-    
+
+    # get sorted list of critical times where the pdf will change
     nums = set()
     for key in results.keys():
         num = results[key]
@@ -672,50 +496,64 @@ def integrals(x0, y0, top, bottoms, points, left):
             continue
         nums.add(num)
     nums = sorted(list(nums))
-    
-    #print()
-    
+
+    # functions used to subtract off excess area accumulated by f1 or fL
+    # the parabola can hit the left end, interior, or right end of a line segment. f110 means the parabola has hit the left end and interior of the segment but not the right edge. f010 means the parabola has intersected the interior but neither end point
+    # the extra '$i' attached to each key indexes the functions by the number of bottom segments
+    basic_funcs = {}
+    for i in range(1, len(bottoms)+1):
+        basic_funcs[f"f000${i}"] = f'f000${i} = 0'
+        basic_funcs[f"f110${i}"] = f'f110${i} = Simplify[D[Integrate[1, {{x, {f"point{i-1}"}, {f"inter{i}$2"}}}, {{y, func, {f"bottom{i}"}}}], t]]'
+        basic_funcs[f"f010${i}"] = f'f010${i} = Simplify[D[Integrate[1, {{x, {f"inter{i}$1"}, {f"inter{i}$2"}}}, {{y, func, {f"bottom{i}"}}}], t]]'
+        basic_funcs[f"f011${i}"] = f'f011${i} = Simplify[D[Integrate[1, {{x, {f"inter{i}$1"}, {f"point{i}"}}}, {{y, func, {f"bottom{i}"}}}], t]]'
+        basic_funcs[f"f111${i}"] = f'f111${i} = Simplify[D[Integrate[1, {{x, {f"point{i-1}"}, {f"point{i}"}}}, {{y, func, {f"bottom{i}"}}}], t]]'
+
+    # list of functions that will make up the piecewise equation for the pdf
     function_strings = []
+    # if the basic_funcs key has already been called in mathematica, dont repeat the call
+    visited_basic_func_string = []
+    # pdf starts at zero before it enters the section
     function_strings.append(0)
+    infinity = M('Infinity')
+    # step through all the time intervals and figure out what critical points have been intersected and what needs to be subtracted off our base integral (f1 or fL)
     for num in nums:
-        function_string = list('000$000$000')  # Convert string to list for mutability
-        
-        if timeLeftEnd <= num:
-            function_string[0] = '1'
-        if timeBottom1 <= num:
-            function_string[1] = '1'
-        if timePoint1 <= num:
-            function_string[2:5] = list('1$1')  # Assign list to preserve underscore
-        if bottom2 is not None:
-            if timeBottom2 <= num:
-                function_string[5] = '1'
-            if timePoint2 <= num:
-                function_string[6:9] = list('1$1')  # Assign list
-        if bottom3 is not None:
-            if timeBottom3 <= num:
-                function_string[9] = '1'
-            if timeRightEnd <= num:
-                function_string[10] = '1'
-    
-        if bottom2 is None:
-            function_string[4:] = '000$000'
-        elif bottom3 is None:
-            #print("true")
-            function_string[8:] = '000'
-        function_string = ''.join(function_string)  # Convert list back to string
-        function_strings.append("f$" + function_string)
-    function_strings[1] = "f1"
-    
-    equations = []
-    for function in function_strings[2:]:
-        print(function)
-        eq = M(f"{equations_dict[function]}")
-        equations.append(eq)
-        
+        # if num is infinity, the function will be 0 so we do not need to compute a function and can exit the loop
+        if num == infinity:
+            break
+        base = []
+        # for each bottom segment, build our function string to pull the equation from the 'basic_funcs' dictionary
+        for i in range(1, len(bottoms)+1):
+            function_string = list(f'f000${i}')
+            if results[f"timePoint{i-1}"] <= num:
+                function_string[1] = '1'
+            if results[f"timeBottom{i}"] <= num:
+                function_string[2] = '1'
+            if results[f"timePoint{i}"] <= num:
+                function_string[3] = '1'  # Assign list to preserve underscore
+            # determine whether or not to use f1 or fL if the left most point has already been reached for the first bottom segment (left-most)
+            if i == 1:
+                if function_string[1] == '1':
+                    current = "fL"
+                else:
+                    current = "f1"
+            function_string = ''.join(function_string)  # Convert list back to string
+            # create variables in mathematica for each of our basic functions, skip repeats
+            if function_string not in visited_basic_func_string:
+                eq = M(basic_funcs[function_string])
+                visited_basic_func_string.append(function_string)
+            # full function string for the given time interval, includes multiple basic functions
+            current = current + ' - ' + function_string
+        function_strings.append(f"Simplify[{current}]")
+
+    # add t=0 to our times
     nums.append(0)
     nums = sorted(nums)
+    # full string to pass into mathematica for our piecewise equation
     combined_string = 'combined = Piecewise[{'
-    for i in range(len(function_strings)):
+    print()
+    print(function_strings)
+    print()
+    for i in range(len(nums)-1):
         t0 = nums[i]
         # make string representations of fractional times consistent
         t0 = re.sub(r"\s*-+\s*", "|", str(t0)).strip()
@@ -724,9 +562,6 @@ def integrals(x0, y0, top, bottoms, points, left):
             t1 = nums[i+1]
             t1 = re.sub(r"\s*-+\s*", "|", str(t1)).strip()
         except:
-            # if parabola has exited the section, dont need to add any more to the piecewise equation
-            if function_strings[i] == "f$111$000$000" or function_strings[i] == "f$111$111$000" or function_strings[i] == "f$111$111$111":
-                break
             t1 = "Infinity"
         combined_string = combined_string + f"/{{{function_strings[i]}, {t0} <= t < {t1}}},"
     # remove comma at the end of string
@@ -736,26 +571,13 @@ def integrals(x0, y0, top, bottoms, points, left):
     # fix string representations and make fractions properly
     combined_string = combined_string.replace("/", "")
     combined_string = combined_string.replace("|", "/")
-    print(combined_string)
     
     combined = M(f"{combined_string}")
     eqs = M('Normal @ combined')
 
     # CoVolume Calculations
-    # totalVol is a global variable that is not reset between function calls among sections and subsections. totalVol will be the cumalitive CoVolume for the entire STS after running this fuinction for all cusps and will be the coVolume of the shape
-    if bottom3 is not None:
-        b1Co = M('b1Co = Integrate[funct, {x, left, point1}, {y, bottom1, top}]')
-        b2Co = M('b2Co = Integrate[funct, {x, point1, point2}, {y, bottom2, top}]')
-        b3Co = M('b3Co = Integrate[funct, {x, point2, 1}, {y, bottom3, top}]')
-        totalVol = M('totalVol = totalVol + b1Co + b2Co + b3Co')
-    elif bottom2 is not None:
-        b1Co = M('b1Co = Integrate[funct, {x, left, point1}, {y, bottom1, top}]')
-        b2Co = M('b2Co = Integrate[funct, {x, point1, point2}, {y, bottom2, top}]')
-        totalVol = M('totalVol = totalVol + b1Co + b2Co')
-    elif bottom1 is not None:
-        b1Co = M('b1Co = Integrate[funct, {x, left, point1}, {y, bottom1, top}]')
-        totalVol = M('totalVol = totalVol + b1Co')
-
-    #print(totalVol)
+    # totalVol is a global variable that is not reset between function calls among sections and subsections. totalVol will be the cumalitive CoVolume for the entire STS after running this function for all cusps and will be the coVolume of the shape
+    for i in range(1, len(bottoms)+1):
+        totalVol = M(f'totalVol = totalVol + Integrate[funct, {{x, {f"point{i-1}"}, {f"point{i}"}}}, {{y, {f"bottom{i}"}, top}}]')
 
     return eqs, totalVol
