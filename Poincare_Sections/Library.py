@@ -448,7 +448,7 @@ def setup(alpha, c, eig, vecs0, dx):
 #   dx_y: step size for separation of points to sample in the section
 #
 # output: 
-    # df: dateframe that has the x and y coordinates that were sampled, the winning saddle connection at those coordinates, the label gievn to the vector for plotting purposes, and the rounded return time associated with that point
+    # df: dateframe that has the x and y coordinates that were sampled, the winning saddle connection at those coordinates, the label given to the vector for plotting purposes, and the rounded return time associated with that point
 
 def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     # dictionary for plotting
@@ -468,7 +468,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     t0 = time()
     for a in np.arange(dz, 1, dz):
         # Matrix stays outside the inner loop
-        Mab = np.array([[a, m0*a + 1/y0 - dx_y], [0, a]], dtype = 'float')
+        Mab = np.array([[a, m0*a + 1/y0 - dx_y], [0, 1/a]], dtype = 'float')
 
         # apply Mab matrix to all vectors
         new_vecs = Mab @ vecs1
@@ -490,6 +490,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
             continue
 
         # Calculate slopes
+        
         slopes = valid_y / valid_x
 
         # Find the minimum slope and handle continuity cases
@@ -499,8 +500,9 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
 
         # Handle continuity by finding the smallest vector if slopes are close
         for i, slope in enumerate(slopes):
-            if np.abs(slope - winner_slope) <= dx / 1000:
+            if np.abs(slope - winner_slope) == 0:
                 if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
+                    print(f"replacing winner: {winner} with {valid_vecs[:,i]}")
                     winner = valid_vecs[:, i]
 
         winners.append(winner.reshape(2, 1))
@@ -542,7 +544,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     
             # Handle continuity by finding the smallest vector if slopes are close
             for i, slope in enumerate(slopes):
-                if np.abs(slope - winner_slope) <= dx / 1000:
+                if np.abs(slope - winner_slope) == 0:
                     if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
                         winner = valid_vecs[:, i]
             winners.append(winner.reshape(2, 1))
@@ -582,7 +584,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
 
         # Handle continuity by finding the smallest vector if slopes are close
         for i, slope in enumerate(slopes):
-            if np.abs(slope - winner_slope) <= dx / 1000:
+            if np.abs(slope - winner_slope) == 0:
                 if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
                     winner = valid_vecs[:, i]
         winners.append(winner.reshape(2, 1))
@@ -621,7 +623,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
 
         # Handle continuity by finding the smallest vector if slopes are close
         for i, slope in enumerate(slopes):
-            if np.abs(slope - winner_slope) <= dx / 1000:
+            if np.abs(slope - winner_slope) == 0:
                 if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
                     winner = valid_vecs[:, i]
         winners.append(winner.reshape(2, 1))
@@ -699,7 +701,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
                         winner = vec
                         continue
             # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
-                    elif abs(y/x - winner_slope) <= dx/1000:
+                    elif abs(y/x - winner_slope) == 0:
                         if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
                             winner = vec
                             continue
@@ -716,6 +718,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
                     check += 1
                     saddle_dict["lab"].append(i)
                     saddle_dict["time"].append(t_dict[i](a, b))
+                    # this is an error
                     if saddle_dict["time"][-1] < 0:
                         saddle_dict["time"][-1] = 1000
             # if there is no winner, at (a,b), add a label so the df and plot can still be made. These section will later be made blank for trouble-shoooting
@@ -822,6 +825,7 @@ def get_symbolic_eqn(pwlf_, segment_number):
                     (x-pwlf_.fit_breaks[line])**k
     return my_eqn.simplify()
 
+# this is only used for computing the estimated pdfs for a given poincare section
 def sec_setup(df, dx_y):
     sec_list = []
     global labs
@@ -858,7 +862,7 @@ def sec_setup(df, dx_y):
         sec_list.append(sec_dict)
     return sec_list
 
-
+# this is only used for computing the estimated pdfs for a given poincare section
 def sec_comp(sec_list, dx):
     secs = []
     for i in range(len(sec_list)):
@@ -915,16 +919,19 @@ def sec_comp(sec_list, dx):
         secs.append(sec)
     return secs
 
+# this is used for computing the integral-based pdfs for a given poincare section
 def sec_setup2(df, dx_y):
     sec_list = []
-    global labs
+    # global labs
     labs = df["lab"].unique()
     vec_order = []
     vec_dict = {}
-    #print(labs)
+    # indexing through the winning saddle connections that appear in the section
     for lab in labs:
         sec_dict = {}
+        # get the subsection defined by one winner
         df1 = df[df["lab"] == lab]
+        # order winners are accessed in
         vec_order.append(df1['vec'].iloc[int(0)])
         vec_dict[lab] = df1['vec'].iloc[int(0)]
         xs = df1["x"]
@@ -956,9 +963,8 @@ def sec_setup2(df, dx_y):
         sec_list.append(sec_dict)
     return sec_list, vec_order, vec_dict
 
-
+# this is used for computing the integral-based pdfs for a given poincare section
 def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
-    from fractions import Fraction as frac
     x = Symbol('x')
     
     secs = []
@@ -970,6 +976,7 @@ def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
     #print(problem_xs)
     problems = [problem_xs[0]]
     for i in range(len(problem_xs) - 1):
+        # these points are the same but may not be equal due to sampling methods and python rounding
         if abs(problem_xs[i] - problem_xs[i+1]) <= 0.01:
             continue
         problems.append(problem_xs[i+1])
