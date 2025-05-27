@@ -132,7 +132,7 @@ def run_integrals(n_squares, index, a, perm):
     totalVol2 = M('totalVolN = N[totalVol]')
 
     # expected coVolume
-    veech_index = int(re.findall(r'index (\d+)', str(perm.veech_group()))[0])
+    veech_index = int(perm.veech_group().index())
     # numeric
     target = M(f'target = N[(Pi^2/6)*{veech_index}]')
     save_path = os.path.join("results", f"{n_squares}_{index}", "coVolume.txt")
