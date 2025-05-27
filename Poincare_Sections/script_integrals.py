@@ -1,40 +1,3 @@
-# import numpy as np
-# from matplotlib import pyplot as plt
-# import pandas as pd
-# from flatsurf import *
-# import os
-# import pwlf
-# from surface_dynamics.all import *
-# from Library import *
-# from Library import Section
-# import math
-# from time import time
-# import copy
-# from scipy import integrate
-# import sympy as sym
-# from sympy import Symbol, solve, lambdify
-# import traceback
-# import dill
-# import sys
-# import unittest
-# from surface_dynamics.all import Origami
-# from utils import load_arrays_from_file  # testing
-# import re
-# from sage.all import *
-# from surface_dynamics.all import Origami
-# from surface_dynamics.all import *
-# import numpy as np
-# from fractions import Fraction as frac
-# M = mathematica
-# from IPython.display import display, Math
-# import sympy as sp
-# from sympy.parsing.sympy_parser import parse_expr
-# from mathematica import *
-# from integration_functions import *
-# from sympy import symbols, And, Piecewise, Add, N
-# from sympy.core.relational import Relational
-# t = sp.Symbol('t')
-
 import sys
 from Library import *
 from matplotlib import pyplot as plt
@@ -62,7 +25,9 @@ n_squares = int(sys.argv[1])
 index = int(sys.argv[2])
 
 perm = perms_list(n_squares)[index]
-dx = 0.0005
+
+final_dir = os.path.join("results", f"{n_squares}_{index}")
+os.makedirs(final_dir, exist_ok=True)  # Ensure directory exists
 
 # get the alphas
 with open(os.path.join("results", f"{n_squares}_{index}", "setup.dill"), 'rb') as f:
@@ -83,9 +48,6 @@ interval_list = [[boundary_points[i], boundary_points[i + 1]] for i in range(len
 interval_list[-1][1] = interval_list[-1][0] + 10
 
 graph_piece(combined_pw, interval_list, n_squares, index, -1, 50)
-
-final_dir = os.path.join("results", f"{n_squares}_{index}")
-os.makedirs(final_dir, exist_ok=True)  # Ensure directory exists
 
 with open(os.path.join(final_dir, f"final_eq.dill"), 'wb') as file:
     dill.dump(combined_pw, file)
