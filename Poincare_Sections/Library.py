@@ -15,12 +15,13 @@ from fractions import Fraction as frac
 import sympy as sym
 from sympy import Matrix, sqrt, solve, lambdify, Eq, Symbol
 import dill
+from collections import defaultdict
 
 # run_script - brief description
 # inputs:
 # vecs0 - array of ... numpy
 # a - the alpha value... 
-def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
+def compute_poincare_sections(vecs0, a, c, e, dx, dy, dz, j, n_squares, index, estimated_output = False):
     print(f"id: {os.getpid()}")
     list_as = []
     list_cs = []
@@ -43,12 +44,17 @@ def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
 
     for i in range(len(sorted_a)):
         # get dimensions of section
-        vecs, x_vals, m0, m1, x0, y0, dx_y = setup(
+        vecs, x_vals, m0, m1, x0, y0, dy_x = setup(
             sorted_a[i], sorted_c[i], sorted_e[i], vecs0, dx)
         print("i = " + str(i), "j = " + str(j))
 
+        if dy == -1:
+            dy = dy_x
+        if dz == -1:
+            dz = 1/20
+
         # create a dataframe with winning vector at certain points in the section
-        df = winners(vecs, x_vals, m0, m1, y0, dx, dx_y)
+        df = winners(vecs, x_vals, m0, m1, y0, dx, dy, dz)
         # plot poincare section and save
         try:
             plot(df, vecs, sorted_c[i], j, n_squares, index, test=False)
@@ -59,8 +65,9 @@ def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
             "results", f"{n_squares}_{index}", f"df_{j}.csv"), index=False)
 
         # make section object that define winning vector and line equations for boundaries of subsections
-        sec_list = sec_setup(df, dx_y)
-        secs = sec_comp(sec_list, dx)
+        if estimated_output:
+            sec_list = sec_setup(df, dx_y)
+            secs = sec_comp(sec_list, dx)
         sec_list2, vec_order, vec_dict = sec_setup2(df, dx_y)
         secs2 = sec_comp2(df, sec_list2, vec_order, vec_dict, dx, dx_y, m1, y0)
         
@@ -70,10 +77,10 @@ def compute_poincare_sections(vecs0, a, c, e, dx, j, n_squares, index):
         with open(os.path.join("results", f"{n_squares}_{index}", "secs_integrals_" + str(j) + ".dill"), 'wb') as f:
             dill.dump(secs2, f)
 
-        times = time_comp(secs)
-
-        # plot the pdf for each cusp
-        pdf(list(df["time"]), times, dx*2, n_squares, index, j)
+        if estimated_output:
+            times = time_comp(secs)
+            # plot the pdf for each cusp
+            pdf(list(df["time"]), times, dx*2, n_squares, index, j)
         
         print(f"section {j} done")
         break
@@ -435,7 +442,7 @@ def setup(alpha, c, eig, vecs0, dx):
 
 
 # It first computes winning vectors from all possible vectors on points on the
-# top, vertical and bottom edges of the poincare section. Then it computes winners
+# verticals of the poincare section. Then it computes winners
 # for all points in the poincare section from the subsetset of winners calculated in the first step.
 #
 # inputs:
@@ -444,13 +451,14 @@ def setup(alpha, c, eig, vecs0, dx):
 #   m0: slope of the top line of the poincare section
 #   m1: slope of the bottom line of the poincare section
 #   y0: 1/y0 is the y-coordinate of the top left corner point of the section
-#   dx: step size for separation of points to sample in the section
-#   dx_y: step size for separation of points to sample in the section
+#   dx: step size for separation of points in the x-direction to sample in the section
+#   dy: step size for separation of points in the y-direction to sample in the section
+#   dz: step size for serpartion of points in the x-direction to preliminarily sample for possible winners
 #
 # output: 
     # df: dateframe that has the x and y coordinates that were sampled, the winning saddle connection at those coordinates, the label given to the vector for plotting purposes, and the rounded return time associated with that point
 
-def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
+def winners(vecs0, x_vals, m0, m1, y0, dx, dy, dz):
     # dictionary for plotting
     saddle_dict = {}
     saddle_dict["x"] = []
@@ -460,60 +468,16 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     saddle_dict["time"] = []
     possible_vecs = []
     winners = []
-    dz = 1 / 100
-    vecs1 = np.hstack([arr.astype(float) for arr in vecs0])  # Ensure all are float64
-    vecs = np.hstack(vecs0)  # Keep the original structure for output if needed
-
-    # compute winner for top edge
-    t0 = time()
-    for a in np.arange(dz, 1, dz):
-        # Matrix stays outside the inner loop
-        Mab = np.array([[a, m0*a + 1/y0 - dx_y], [0, 1/a]], dtype = 'float')
-
-        # apply Mab matrix to all vectors
-        new_vecs = Mab @ vecs1
-
-        # break into components
-        x_comps = new_vecs[0, :]
-        y_comps = new_vecs[1, :]
-
-        # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
-        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / np.where(x_comps == 0,np.inf, x_comps) > 0)
-
-        valid_x = x_comps[valid_mask]
-        valid_y = y_comps[valid_mask]
-        # Apply the mask to filter valid vectors
-        valid_vecs = vecs[:, valid_mask]
-
-        if valid_x.size == 0:
-            winners.append(None)
-            continue
-
-        # Calculate slopes
-        
-        slopes = valid_y / valid_x
-
-        # Find the minimum slope and handle continuity cases
-        min_slope_idx = np.argmin(slopes)
-        winner_slope = slopes[min_slope_idx]
-        winner = valid_vecs[:, min_slope_idx]
-
-        # Handle continuity by finding the smallest vector if slopes are close
-        for i, slope in enumerate(slopes):
-            if np.abs(slope - winner_slope) == 0:
-                if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
-                    print(f"replacing winner: {winner} with {valid_vecs[:,i]}")
-                    winner = valid_vecs[:, i]
-
-        winners.append(winner.reshape(2, 1))
-    t1 = time()
-    print("top done: " + str(t1 - t0))
+    vecs1 = np.hstack([arr.astype(float) for arr in vecs0])  # float operations
+    vecs = np.hstack(vecs0) # fraction operations
 
     # verticals
     t0 = time()
-    x_vals_side = np.arange(dx, 1, dx*100)
+    x_vals_side = np.arange(dx, 1-dx, dz)
+    x_vals_side[-1] = 0.9995
+    print(f"number of verticals: {len(x_vals_side)}")
     for a in x_vals_side:
-        y_vals = np.arange(m1*a + 1/y0 + dx_y, m0*a + 1/y0 - dx_y, dx_y*2)
+        y_vals = np.arange(m1*a + 1/y0 + dy, m0*a + 1/y0 - dy, dy)
         for b in y_vals:
             Mab = np.array([[a, b], [0, 1/a]], dtype = 'float')
             # Apply the transformation to all vectors at once
@@ -536,123 +500,30 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
     
             # Calculate slopes
             slopes = valid_y / valid_x
-    
-            # Find the minimum slope and handle continuity cases
-            min_slope_idx = np.argmin(slopes)
-            winner_slope = slopes[min_slope_idx]
-            winner = valid_vecs[:, min_slope_idx]
-    
-            # Handle continuity by finding the smallest vector if slopes are close
-            for i, slope in enumerate(slopes):
-                if np.abs(slope - winner_slope) == 0:
-                    if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
-                        winner = valid_vecs[:, i]
+        
+            min_slope = np.min(slopes)
+            is_candidate = np.isclose(slopes, min_slope)
+            candidates = valid_vecs[:, is_candidate]
+            
+            # Among candidates with minimal slope, pick the one with smallest x
+            winner_idx = np.argmin(candidates[0, :])  # Compare x-components
+            winner = candidates[:, winner_idx]
             winners.append(winner.reshape(2, 1))
     t1 = time()
     print("verticals done: " + str(t1 - t0))
 
-    # side edge
-    t0 = time()
-    y_vals = np.arange(m1*a + 1/y0 + dx, m0*a + 1/y0 - dx, dx)
-    for b in y_vals:
-        Mab = np.array([[1-dx, b], [0, 1/(1-dx)]], dtype = 'float')
-        # Apply the transformation to all vectors at once
-        new_vecs = Mab @ vecs1
-
-        x_comps = new_vecs[0, :]
-        y_comps = new_vecs[1, :]
-
-        # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
-        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / np.where(x_comps == 0,np.inf, x_comps) > 0)
-
-        valid_x = x_comps[valid_mask]
-        valid_y = y_comps[valid_mask]
-        # Apply the mask to filter valid vectors
-        valid_vecs = vecs[:, valid_mask]
-
-        if valid_x.size == 0:
-            winners.append(None)
-            continue
-
-        # Calculate slopes
-        slopes = valid_y / valid_x
-
-        # Find the minimum slope and handle continuity cases
-        min_slope_idx = np.argmin(slopes)
-        winner_slope = slopes[min_slope_idx]
-        winner = valid_vecs[:, min_slope_idx]
-
-        # Handle continuity by finding the smallest vector if slopes are close
-        for i, slope in enumerate(slopes):
-            if np.abs(slope - winner_slope) == 0:
-                if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
-                    winner = valid_vecs[:, i]
-        winners.append(winner.reshape(2, 1))
-    t1 = time()
-    print("side done: " + str(t1 - t0))
-
-    # diagonal
-    t0 = time()
-    for a in np.arange(0 + dz, 1, dz):
-        Mab = np.array([[a, m1*a + 1/y0 + dx_y], [0, a]], dtype = 'float')
-        # Apply the transformation to all vectors at once
-        new_vecs = Mab @ vecs1
-
-        x_comps = new_vecs[0, :]
-        y_comps = new_vecs[1, :]
-
-        # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
-        valid_mask = (x_comps > 0) & (x_comps <= 1) & (y_comps / np.where(x_comps == 0,np.inf, x_comps) > 0)
-
-        valid_x = x_comps[valid_mask]
-        valid_y = y_comps[valid_mask]
-        # Apply the mask to filter valid vectors
-        valid_vecs = vecs[:, valid_mask]
-
-        if valid_x.size == 0:
-            winners.append(None)
-            continue
-
-        # Calculate slopes
-        slopes = valid_y / valid_x
-
-        # Find the minimum slope and handle continuity cases
-        min_slope_idx = np.argmin(slopes)
-        winner_slope = slopes[min_slope_idx]
-        winner = valid_vecs[:, min_slope_idx]
-
-        # Handle continuity by finding the smallest vector if slopes are close
-        for i, slope in enumerate(slopes):
-            if np.abs(slope - winner_slope) == 0:
-                if valid_vecs[0, i] < winner[0] or valid_vecs[1, i] < winner[1]:
-                    winner = valid_vecs[:, i]
-        winners.append(winner.reshape(2, 1))
-    t1 = time()
-    print("diagonal done: " + str(t1 - t0))
-
-    # filter out winners that are "None"
-    winners2 = []
-    for winner in winners:
-        try:
-            if winner == None:
-                continue
-        except:
-            winners2.append(winner)
-    # Flatten winners and store as a list of lists
-    flattened_winners = [winner.flatten().tolist() for winner in winners2]
+    # Step 1: Filter out None values efficiently
+    winners_filtered = [w for w in winners if w is not None]
     
-    # Find unique entries
-    unique_winners = []
-    for item in flattened_winners:
-        if item not in unique_winners:
-            unique_winners.append(item)
+    # Step 2: Find unique vectors using a dictionary (faster than list searching)
+    unique_dict = defaultdict(list)
+    for winner in winners_filtered:
+        # Convert to tuple for hashability
+        key = tuple(winner.flatten())
+        unique_dict[key].append(winner)
     
-    # Manually assemble each unique winner into a 2D column vector
-    possible_vecs = []
-    for unique_item in unique_winners:
-        # Manually create the column vector
-        vector = np.array([[unique_item[0]], [unique_item[1]]], dtype=object)
-        possible_vecs.append(vector)
+    # Step 3: Get first occurrence of each unique vector
+    possible_vecs = [vectors[0] for vectors in unique_dict.values()]
 
     global label_dict
     label_dict = {}
@@ -681,7 +552,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
 
     # for each point (a,b) in the poincare section, apply the Mab matrix to each vector and look for "winners". Winners have smallest possible slope that is greater than zero and 0 < x-component <= 1
     for a in x_vals:
-        y_vals = np.arange(m1*a + 1/y0 + dx_y, m0*a + 1/y0 - dx_y, dx_y)
+        y_vals = np.arange(m1*a + 1/y0 + dy, m0*a + 1/y0 - dy, dy)
         for b in y_vals:
             check = 0
             winner_slope = None
@@ -700,11 +571,6 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dx_y):
                         winner_slope = y/x
                         winner = vec
                         continue
-            # if you have two potential winners like (m,n) and 2*(m,n), make (m,n) winner for continuity and plotting purposes
-                    elif abs(y/x - winner_slope) == 0:
-                        if vec[0][0] < winner[0][0] or vec[1][0] < winner[1][0]:
-                            winner = vec
-                            continue
                     elif y/x < winner_slope:
                         winner_slope = y/x
                         winner = vec

@@ -76,7 +76,7 @@ with open(os.path.join("results", f"{n_squares}_{index}", "setup.dill"), 'wb') a
 # get the number of cores to be used in computations and the number of loops needed to complete each cusp
 num_pools, num_loops = pool_num(len(a[0]))
 
-args = [(vecs0, a, c, e, dx, j, n_squares, index) for j in range(len(a[0]))]
+args = [(vecs0, a, c, e, dx, dy, dz, j, n_squares, index, estimated) for j in range(len(a[0]))]
 
 # parallelize the run_script function
 for i in range(num_loops):
