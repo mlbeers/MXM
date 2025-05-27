@@ -25,7 +25,6 @@ n_squares = int(sys.argv[1])
 index = int(sys.argv[2])
 
 perm = perms_list(n_squares)[index]
-dx = 0.0005
 
 final_dir = os.path.join("results", f"{n_squares}_{index}")
 os.makedirs(final_dir, exist_ok=True)  # Ensure directory exists
