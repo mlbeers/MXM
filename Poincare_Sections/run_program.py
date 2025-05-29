@@ -7,8 +7,8 @@ from Library import *
 import re
 import os
 
-def run_sage(script, args, log_file=None):
-    """Run a Sage script with the given arguments, optionally logging output."""
+def run_sage(script, args, log_file):
+    """Run a Sage script with the given arguments"""
     cmd = ["sage", script] + args
     print(f">>> Running: {' '.join(cmd)}")
     try:
@@ -34,7 +34,6 @@ def main():
     parser.add_argument("--dz", type=float, default=0.01, help="sampling resolution for potential winners (positive float)")
     parser.add_argument("--vec_length", type=int, default=2000, help="Length of the generated vectors (positive integer)")
 
-    parser.add_argument("--log", type=str, default="sage_run.log", help="Log file name (optional)")
     parser.add_argument("--folder", type=str, help="directory of the folder where you want the files to live")
 
     args = parser.parse_args()
@@ -104,12 +103,11 @@ def main():
     dy = str(args.dy)
     dz = str(args.dz)
     vec_length = str(args.vec_length)
-    log_file = args.log
     folder = args.folder
 
-    run_sage("script_vector.py", [perm, vec_length, folder], log_file)
-    run_sage("script_winners.py", [perm, dx, dy, dz, folder], log_file)
-    run_sage("script_integrals.py", [perm, folder], log_file)
+    run_sage("script_vector.py", [perm, vec_length, folder], os.path.join(folder, "log.txt"))
+    run_sage("script_winners.py", [perm, dx, dy, dz, folder], os.path.join(folder, "log.txt"))
+    run_sage("script_integrals.py", [perm, folder], os.path.join(folder, "log.txt"))
 
     print("\nAll scripts completed successfully.")
 
