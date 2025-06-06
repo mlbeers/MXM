@@ -28,18 +28,20 @@ from Library import Section
 
 t0 = time()
 
-# number of squares for STS
-n_squares = int(sys.argv[1])
-# index to start at
-index = int(sys.argv[2])
+dx_string = str(sys.argv[1])
+dy_string = str(sys.argv[2])
 
-dx = float(sys.argv[3])
+dx_frac = frac(dx_string)
+dx = float(dx_frac)
 
-os.makedirs(os.path.join("results", f"{n_squares}_{index}"), exist_ok=True)  # Ensure directory exists
+dy_frac = frac(dy_string)
+dy = float(dy_frac)
 
-permutations = perms_list(n_squares)
+folder = str(sys.argv[3])
 
-perm = permutations[index]
+with open(os.path.join("results", folder, "perm.dill"), 'rb') as f:
+    perm = dill.load(f)
+
 plot = perm.plot()
 plot.save(os.path.join("results", f"{n_squares}_{index}", "permutation.png"))
 
@@ -76,7 +78,7 @@ with open(os.path.join("results", f"{n_squares}_{index}", "setup.dill"), 'wb') a
 # get the number of cores to be used in computations and the number of loops needed to complete each cusp
 num_pools, num_loops = pool_num(len(a[0]))
 
-args = [(vecs0, a, c, e, dx, dy, dz, j, n_squares, index, estimated) for j in range(len(a[0]))]
+args = [(vecs0, a, c, e, dx, dy, dx_frac, dy_frac, j, n_squares, index, estimated) for j in range(len(a[0]))]
 
 # parallelize the run_script function
 for i in range(num_loops):
