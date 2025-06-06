@@ -74,7 +74,7 @@ def get_symbolic_eqn(pwlf_, segment_number):
 # this is only used for computing the estimated pdfs for a given poincare section
 
 
-def sec_setup(df, dx_y):
+def sec_setup_estimated(df, dx_y):
     sec_list = []
     global labs
     labs = df["lab"].unique()
@@ -113,7 +113,7 @@ def sec_setup(df, dx_y):
 # this is only used for computing the estimated pdfs for a given poincare section
 
 
-def sec_comp(sec_list, dx):
+def sec_comp_estimated(sec_list, dx):
     secs = []
     for i in range(len(sec_list)):
         x = sec_list[i]['x']
