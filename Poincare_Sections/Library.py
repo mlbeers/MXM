@@ -18,7 +18,7 @@ import dill
 from collections import defaultdict
 from estimated_library import *
 
-def compute_poincare_sections(vecs0, a, c, e, dx, dy, dx_frac, dy_frac, j, n_squares, index, estimated_output=False):
+def compute_poincare_sections(vecs0, a, c, e, dx, dy, dx_frac, dy_frac, j, folder, estimated_output=False):
     print(f"id: {os.getpid()}")
     list_as = []
     list_cs = []
@@ -42,41 +42,41 @@ def compute_poincare_sections(vecs0, a, c, e, dx, dy, dx_frac, dy_frac, j, n_squ
 
     for i in range(len(sorted_a)):
         # get dimensions of section
-        vecs, x_vals, m0, m1, x0, y0, dy_x = setup(
-            sorted_a[i], sorted_c[i], sorted_e[i], vecs0, dx)
+        vecs, x_vals, m0, m1, x0, y0, dy_x, dy_x_frac = setup(
+            sorted_a[i], sorted_c[i], sorted_e[i], vecs0, dx, dx_frac)
         print("i = " + str(i), "j = " + str(j))
 
         if dy == -1:
             dy = dy_x
-        dz = 1/20
+            dy_frac = dy_x_frac
 
         # create a dataframe with winning vector at certain points in the section
         df = winners(vecs, x_vals, m0, m1, y0, dx, dy, dx_frac, dy_frac)
         # plot poincare section and save
         try:
-            plot(df, vecs, sorted_c[i], j, n_squares, index, test=False)
+            plot(df, vecs, sorted_c[i], j, folder, test=False)
         except Exception as error:
             print(error)
             continue
         df.to_csv(os.path.join(
-            "results", f"{n_squares}_{index}", f"df_{j}.csv"), index=False)
+            "results", folder, f"df_{j}.csv"), index=False)
 
         # make section object that define winning vector and line equations for boundaries of subsections
         if estimated_output:
-            sec_list = sec_setup(df, dy)
-            secs = sec_comp(sec_list, dx)
+            sec_list_estimated = sec_setup_estimated(df, dy)
+            secs_estimated = sec_comp_estimated(sec_list_estimated, dx)
             
-            with open(os.path.join("results", f"{n_squares}_{index}", "secs_" + str(j) + ".dill"), 'wb') as f:
-                dill.dump(secs, f)
+            with open(os.path.join("results", folder, "secs_estimated_" + str(j) + ".dill"), 'wb') as f:
+                dill.dump(secs_estimated, f)
                 
-            times = time_comp(secs)
+            times = time_comp(secs_estimated)
             # plot the pdf for each cusp
-            pdf(list(df["time"]), times, dx*2, n_squares, index, j)
+            pdf(list(df["time"]), times, dx*2, folder, j)
                 
         sec_list_integrals, vec_dict = sec_setup_integrals(df, dy)
-        secs_integrals = sec_comp_integrals(df, sec_list_integrals, vec_dict, dx, dy, m1, y0)
+        secs_integrals = sec_comp_integrals(df, sec_list_integrals, vec_dict, dx, m1, y0)
         
-        with open(os.path.join("results", f"{n_squares}_{index}", "secs_integrals_" + str(j) + ".dill"), 'wb') as f:
+        with open(os.path.join("results", folder, "secs_integrals_" + str(j) + ".dill"), 'wb') as f:
             dill.dump(secs_integrals, f)
 
         print(f"section {j} done")
@@ -415,7 +415,7 @@ def try_poincare_setup(sts_data, trys):
     # dx_y: y-spacing used for point sampling in the function "winners"
 
 
-def setup(alpha, c, eig, vecs0, dx):
+def setup(alpha, c, eig, vecs0, dx, dx_frac):
     x_vals = np.arange(dx, 1, dx)
     # create list of new vectors
     vecs1 = c@vecs0
@@ -454,9 +454,10 @@ def setup(alpha, c, eig, vecs0, dx):
     m1 = -(x0/y0 + alpha)
 
     # defines vertical step when finding winners
-    dx_y = (m0 - m1) * dx
-
-    return vecs, x_vals, m0, m1, x0, y0, dx_y
+    dy_x = (m0 - m1) * dx
+    dy_x_frac = (m0 - m1) * dx_frac
+    
+    return vecs, x_vals, m0, m1, x0, y0, dy_x, dy_x_frac
 
 
 # It first computes winning vectors from all possible vectors on points on the
@@ -471,7 +472,6 @@ def setup(alpha, c, eig, vecs0, dx):
 #   y0: 1/y0 is the y-coordinate of the top left corner point of the section
 #   dx: step size for separation of points in the x-direction to sample in the section
 #   dy: step size for separation of points in the y-direction to sample in the section
-#   dz: step size for serpartion of points in the x-direction to preliminarily sample for possible winners
 #
 # output:
     # df: dateframe that has the x and y coordinates that were sampled, the winning saddle connection at those coordinates, the label given to the vector for plotting purposes, and the rounded return time associated with that point
@@ -655,7 +655,7 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dy, dx_frac, dy_frac):
     return df
 
 # plot the Poincare sections and save them
-def plot(df, vecs, c, j, n_squares, index, test=False):
+def plot(df, vecs, c, j, folder, test=False):
     fig, ax = plt.subplots(figsize=(10, 10))
     # plot winners
     ax.scatter(df[df["lab"] != len(vecs)]["x"], df[df["lab"] != len(
@@ -680,7 +680,7 @@ def plot(df, vecs, c, j, n_squares, index, test=False):
         # take out
         plt.show()
         plt.savefig(os.path.join(
-            "results", f"{n_squares}_{index}", "section_" + str(j)))
+            "results", folder, "section_" + str(j)))
     # for troubleshooting
     if test == True:
         # display vectors on the right edge of the section from top to bottom
@@ -746,7 +746,7 @@ def sec_setup_integrals(df, dy):
     return sec_list, vec_dict
 
 # this is used for computing the integral-based pdfs for a given poincare section
-def sec_comp_integrals(df, sec_list, vec_dict, dx, dy, m1, y0):
+def sec_comp_integrals(df, sec_list, vec_dict, dx, m1, y0):
     secs = []
     problem_xs = []
     # go through each section and find its left-most point and append it to a list
@@ -866,9 +866,9 @@ def load_arrays_from_file(file_path):
     arrays_list = [np.array(array) for array in arrays_list]
     return arrays_list
 
-def read_df(n_squares, index, cusp):
+def read_df(folder, cusp):
     df = pd.read_csv(os.path.join(
-        "results", f"{n_squares}_{index}", "df_" + str(cusp)))
+        "results", folder, "df_" + str(cusp)))
 
     def read_vec(s):
         s = s.replace("[", "")
