@@ -399,9 +399,9 @@ def integrals(x0, y0, top, bottoms, points):
     # dictionary to hold values for section
     values = {}
 
+    # intiate mathematica variables
     values["x0"] = M(f"{x0}")
     values["y0"] = M(f"{y0}")
-    
     values["top"] = M(f"{top}")
 
     for i in range(len(bottoms)):
@@ -409,9 +409,8 @@ def integrals(x0, y0, top, bottoms, points):
     for i in range(len(points)):
         values[f"point{i}"] = M(f"{points[i]}") 
 
-    # Assumes all the sections have endpoints at x = 1
+    # Assumes all the subsections have endpoints at x = 1
     values[f"point{len(points)}"] = M(f"point{len(points)} = 1")
-        
     
     func = M('func = 1/(t*x) - x0/y0*x')
     funct = M('funct = y0/(x*(x0*x + y0*y))')
