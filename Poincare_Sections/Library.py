@@ -16,14 +16,9 @@ import sympy as sym
 from sympy import Matrix, sqrt, solve, lambdify, Eq, Symbol
 import dill
 from collections import defaultdict
+from estimated_library import *
 
-# run_script - brief description
-# inputs:
-# vecs0 - array of ... numpy
-# a - the alpha value...
-
-
-def compute_poincare_sections(vecs0, a, c, e, dx, dy, dz, j, n_squares, index, estimated_output=False):
+def compute_poincare_sections(vecs0, a, c, e, dx, dy, dx_frac, dy_frac, j, n_squares, index, estimated_output=False):
     print(f"id: {os.getpid()}")
     list_as = []
     list_cs = []
@@ -53,11 +48,10 @@ def compute_poincare_sections(vecs0, a, c, e, dx, dy, dz, j, n_squares, index, e
 
         if dy == -1:
             dy = dy_x
-        if dz == -1:
-            dz = 1/20
+        dz = 1/20
 
         # create a dataframe with winning vector at certain points in the section
-        df = winners(vecs, x_vals, m0, m1, y0, dx, dy, dz)
+        df = winners(vecs, x_vals, m0, m1, y0, dx, dy, dx_frac, dy_frac)
         # plot poincare section and save
         try:
             plot(df, vecs, sorted_c[i], j, n_squares, index, test=False)
@@ -69,21 +63,21 @@ def compute_poincare_sections(vecs0, a, c, e, dx, dy, dz, j, n_squares, index, e
 
         # make section object that define winning vector and line equations for boundaries of subsections
         if estimated_output:
-            sec_list = sec_setup(df, dx_y)
+            sec_list = sec_setup(df, dy)
             secs = sec_comp(sec_list, dx)
-        sec_list2, vec_order, vec_dict = sec_setup2(df, dx_y)
-        secs2 = sec_comp2(df, sec_list2, vec_order, vec_dict, dx, dx_y, m1, y0)
-
-        with open(os.path.join("results", f"{n_squares}_{index}", "secs_" + str(j) + ".dill"), 'wb') as f:
-            dill.dump(secs, f)
-
-        with open(os.path.join("results", f"{n_squares}_{index}", "secs_integrals_" + str(j) + ".dill"), 'wb') as f:
-            dill.dump(secs2, f)
-
-        if estimated_output:
+            
+            with open(os.path.join("results", f"{n_squares}_{index}", "secs_" + str(j) + ".dill"), 'wb') as f:
+                dill.dump(secs, f)
+                
             times = time_comp(secs)
             # plot the pdf for each cusp
             pdf(list(df["time"]), times, dx*2, n_squares, index, j)
+                
+        sec_list_integrals, vec_dict = sec_setup_integrals(df, dy)
+        secs_integrals = sec_comp_integrals(df, sec_list_integrals, vec_dict, dx, dy, m1, y0)
+        
+        with open(os.path.join("results", f"{n_squares}_{index}", "secs_integrals_" + str(j) + ".dill"), 'wb') as f:
+            dill.dump(secs_integrals, f)
 
         print(f"section {j} done")
         break
@@ -460,7 +454,6 @@ def setup(alpha, c, eig, vecs0, dx):
     m1 = -(x0/y0 + alpha)
 
     # defines vertical step when finding winners
-    global dx_y
     dx_y = (m0 - m1) * dx
 
     return vecs, x_vals, m0, m1, x0, y0, dx_y
@@ -483,7 +476,7 @@ def setup(alpha, c, eig, vecs0, dx):
 # output:
     # df: dateframe that has the x and y coordinates that were sampled, the winning saddle connection at those coordinates, the label given to the vector for plotting purposes, and the rounded return time associated with that point
 
-def winners(vecs0, x_vals, m0, m1, y0, dx, dy, dz):
+def winners(vecs0, x_vals, m0, m1, y0, dx, dy, dx_frac, dy_frac):
     # dictionary for plotting
     saddle_dict = {}
     saddle_dict["x"] = []
@@ -493,67 +486,101 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dy, dz):
     saddle_dict["time"] = []
     possible_vecs = []
     winners = []
-    vecs_float = np.hstack([arr.astype(float)
-                           for arr in vecs0])  # float operations
+    vecs_float = np.hstack([arr.astype(float) for arr in vecs0])  # float operations
     vecs_frac = np.hstack(vecs0)  # fraction operations
-
+    
     # verticals
     t0 = time()
-    x_vals_side = np.arange(dx, 1-dx, dz)
-    x_vals_side[-1] = 0.9995
-    print(f"number of verticals: {len(x_vals_side)}")
-    for a in x_vals_side:
-        y_vals = np.arange(m1*a + 1/y0 + dy, m0*a + 1/y0 - dy, dy)
-        for b in y_vals:
-            Mab = np.array([[a, b], [0, 1/a]], dtype='float')
+    x_vals_float = [0.9, 0.95, 0.9995]
+    x_vals_frac = [frac('90/100'), frac('95/100'), frac('9995/10000')]
+    
+    y_vals_float_total = []
+    y_vals_frac_total = []
+    for x_float, x_frac in zip(x_vals_float, x_vals_frac):
+        y_vals_float = []
+        y_vals_frac = []
+        current_y = m1*x_frac + frac(int(1), y0) + dy_frac
+        while current_y <= m0*x_frac + frac(int(1), y0) - dy_frac:
+            y_vals_frac.append(current_y)
+            y_vals_float.append(float(current_y))
+            current_y = current_y + dy_frac
+        y_vals_frac_total.append(y_vals_frac)
+        y_vals_float_total.append(y_vals_float)
+    
+    print(f"number of verticals: {len(x_vals_float)}")
+    for i, a in enumerate(x_vals_float):
+        for j, b in enumerate(y_vals_float_total[i]):
+            Mab_float = np.array([[a, b], [0, 1/a]], dtype='float')
             # Apply the transformation to all vectors at once
-            new_vecs = Mab @ vecs_float
-
+            new_vecs = Mab_float @ vecs_float
+    
             new_vecs_x = new_vecs[0, :]
             new_vecs_y = new_vecs[1, :]
-
+    
             # Filter based on conditions (x > 0, y/x > 0, and x <= 1)
             filtered_indices = (new_vecs_x > 0) & (new_vecs_x <= 1) & (
                 new_vecs_y / np.where(new_vecs_x == 0, np.inf, new_vecs_x) > 0)
-
+    
             # get x and y components of filtered vectors
             filtered_x = new_vecs_x[filtered_indices]
             filtered_y = new_vecs_y[filtered_indices]
             # Filter the fractional vecs also
             filtered_vecs_frac = vecs_frac[:, filtered_indices]
-
+    
             if filtered_x.size == 0:
                 winners.append(None)
                 continue
-
+    
             # Calculate slopes
             slopes = filtered_y / filtered_x
-
+    
             # numerical smallest slope, could have error
             min_slope = np.min(slopes)
             # find (the indices of vectors with) similar numeric slopes in casae something got messed up
-            nearby_slope_indices = np.isclose(slopes, min_slope)
-
+            nearby_slopes = np.isclose(slopes, min_slope)
+            nearby_slope_indices = np.where(nearby_slopes)[0]  # Get the integer indices
             # go get those indices from the filtered vectors with frac representation
-            candidates = filtered_vecs_frac[:, nearby_slope_indices]
-
+            vecs_frac_close = filtered_vecs_frac[:, nearby_slope_indices]       
+    
+            Mab_frac = np.array([[x_vals_frac[i], y_vals_frac_total[i][j]], [frac(int(0)), frac(int(1), x_vals_frac[i])]], dtype='object')
+            candidates_frac = Mab_frac @ vecs_frac_close
+            slopes_frac = candidates_frac[1, :] / candidates_frac[0, :]
+    
+            winner_idx = None
+            for idx, slope, x_comp in zip(nearby_slope_indices, slopes_frac, candidates_frac[0, :]):
+                if winner_idx == None:
+                    winner_idx = idx
+                    current_slope = slope
+                    current_x_comp = x_comp
+                else:
+                    if slope > current_slope:
+                        continue
+                    elif slope < current_slope:
+                        winner_idx = idx
+                        current_slope = slope
+                        current_x_comp = x_comp
+                    else:
+                        if x_comp < current_x_comp:
+                            winner_idx = idx
+                            current_slope = slope
+                            current_x_comp = x_comp
+                        else:
+                            continue
             # Among candidates with minimal slope, pick the one with smallest x
-            winner_idx = np.argmin(candidates[0, :])  # Compare x-components
-            winner = candidates[:, winner_idx]
+            winner = filtered_vecs_frac[:, winner_idx]
             winners.append(winner.reshape(2, 1))
     t1 = time()
     print("verticals done: " + str(t1 - t0))
-
     # Step 1: Filter out None values efficiently
     winners_filtered = [w for w in winners if w is not None]
-
+    
     # Step 2: Find unique vectors using a dictionary (faster than list searching)
     unique_dict = defaultdict(list)
     for winner in winners_filtered:
         # Convert to tuple for hashability
         key = tuple(winner.flatten())
         unique_dict[key].append(winner)
-
+    
     # Step 3: Get first occurrence of each unique vector
     possible_vecs = [vectors[0] for vectors in unique_dict.values()]
 
@@ -628,8 +655,6 @@ def winners(vecs0, x_vals, m0, m1, y0, dx, dy, dz):
     return df
 
 # plot the Poincare sections and save them
-
-
 def plot(df, vecs, c, j, n_squares, index, test=False):
     fig, ax = plt.subplots(figsize=(10, 10))
     # plot winners
@@ -671,220 +696,65 @@ def plot(df, vecs, c, j, n_squares, index, test=False):
     plt.show()
     plt.close(fig)
 
-
 class Section:
-    def __init__(self, x, top, bottom):
+    def __init__(self):
         self.vec = None
-        self.pwlf_top = pwlf.PiecewiseLinFit(x, top)
-        self.pwlf_bottom = pwlf.PiecewiseLinFit(x, bottom)
         # equations
         self.top = []
         self.bottom = []
-        # lambdified equations
-        self.f_top = []
-        self.f_bottom = []
         # points
-        self.points_top = None
         self.points_bottom = None
 
-    # output time equation
-    def t(self):
-        x, y, t = sym.symbols('x y t')
-        Mab = np.array([[x, y], [0, 1/x]])
-        horo = np.array([[1, 0], [-t, 1]])
-        a = horo@(Mab@self.vec)
-        return solve(a[1][0], t)[0]
-
-    # find the time equation in terms of y
-    def y(self):
-        x, y, t = sym.symbols('x y t')
-        Mab = np.array([[x, y], [0, 1/x]])
-        horo = np.array([[1, 0], [-t, 1]])
-        a = horo@(Mab@self.vec)
-        return solve(a[1][0], y)[0]
-
-
-# Code from pwlf, used to get piecewise representation of the sub-sections
-x = Symbol('x')
-
-
-def get_symbolic_eqn(pwlf_, segment_number):
-    if pwlf_.degree < 1:
-        raise ValueError('Degree must be at least 1')
-    if segment_number < 1 or segment_number > pwlf_.n_segments:
-        raise ValueError('segment_number not possible')
-    # assemble degree = 1 first
-    for line in range(segment_number):
-        if line == 0:
-            my_eqn = pwlf_.beta[0] + (pwlf_.beta[1])*(x-pwlf_.fit_breaks[0])
-        else:
-            my_eqn += (pwlf_.beta[line+1])*(x-pwlf_.fit_breaks[line])
-    # assemble all other degrees
-    if pwlf_.degree > 1:
-        for k in range(2, pwlf_.degree + 1):
-            for line in range(segment_number):
-                beta_index = pwlf_.n_segments*(k-1) + line + 1
-                my_eqn += (pwlf_.beta[beta_index]) * \
-                    (x-pwlf_.fit_breaks[line])**k
-    return my_eqn.simplify()
-
-# this is only used for computing the estimated pdfs for a given poincare section
-
-
-def sec_setup(df, dx_y):
-    sec_list = []
-    global labs
-    labs = df["lab"].unique()
-    for lab in labs:
-        sec_dict = {}
-        df1 = df[df["lab"] == lab]
-        xs = df1["x"]
-        xs = sorted(list(set(xs.tolist())))
-        y_tops = []
-        y_bottoms = []
-        for x in xs:
-            # for a given "x" find the max and minimum y-values
-            y_top = max(df1[df1["x"] == x]["y"])
-            y_bottom = min(df1[df1["x"] == x]["y"])
-            # ensures the section is convex, not concave
-            if len(df1[df1["x"] == x]["y"]) < (y_top - y_bottom)/dx_y:
-                print("len: " + str(len(df1[df1["x"] == x]["y"])))
-                print("ytop: " + str(y_top))
-                print("ybottom: " + str(y_bottom))
-                print("dx_y: " + str(dx_y))
-                print(x)
-                print(df1[df1["x"] == x]["y"])
-                raise ValueError(
-                    "Section has more than 2 points for a given 'x'")
-            y_tops.append(y_top)
-            y_bottoms.append(y_bottom)
-        y_tops = np.array(y_tops, dtype='float32')
-        y_bottoms = np.array(y_bottoms, dtype='float32')
-        xs = np.array(xs, dtype='float32')
-        sec_dict['x'] = xs
-        sec_dict['top'] = y_tops
-        sec_dict['bottom'] = y_bottoms
-        sec_list.append(sec_dict)
-    return sec_list
-
-# this is only used for computing the estimated pdfs for a given poincare section
-
-
-def sec_comp(sec_list, dx):
-    secs = []
-    for i in range(len(sec_list)):
-        x = sec_list[i]['x']
-        top = sec_list[i]['top']
-        bottom = sec_list[i]['bottom']
-        sec = Section(x, top, bottom)
-        sec.vec = label_dict[labs[i]]
-
-        # use piece-wise linear regression to find the equations of the lines for subsection
-        # top
-        num = 1
-        check = True
-        while check:
-            breaks1 = sec.pwlf_top.fit(num)
-            score = sec.pwlf_top.r_squared()
-            if score == float("-inf") or 1 - score < dx*2:
-                check = False
-            if num > 3:
-                breaks1 = sec.pwlf_top.fit(1)
-                score = sec.pwlf_top.r_squared()
-                check = False
-            num += 1
-
-        # bottom
-        num = 1
-        check = True
-        while check:
-            breaks2 = sec.pwlf_bottom.fit(num)
-            score = sec.pwlf_bottom.r_squared()
-            if score == float("-inf") or 1 - score < dx*2:
-                check = False
-            if num > 3:
-                breaks2 = sec.pwlf_bottom.fit(num)
-                score = sec.pwlf_bottom.r_squared()
-                check = False
-            num += 1
-
-        x = Symbol('x')
-
-        # top
-        for i in range(sec.pwlf_top.n_segments):
-            eq = get_symbolic_eqn(sec.pwlf_top, i + 1)
-            sec.top.append(eq)
-            sec.f_top.append(lambdify([x], eq))
-            sec.points_top = breaks1
-
-        # bottom
-        for i in range(sec.pwlf_bottom.n_segments):
-            eq = get_symbolic_eqn(sec.pwlf_bottom, i + 1)
-            sec.bottom.append(eq)
-            sec.f_bottom.append(lambdify([x], eq))
-            sec.points_bottom = breaks2
-        secs.append(sec)
-    return secs
-
 # this is used for computing the integral-based pdfs for a given poincare section
-
-
-def sec_setup2(df, dx_y):
+def sec_setup_integrals(df, dy):
     sec_list = []
-    # global labs
     labs = df["lab"].unique()
-    vec_order = []
+    # dictionary for label of vector to the vector itself
     vec_dict = {}
     # indexing through the winning saddle connections that appear in the section
     for lab in labs:
         sec_dict = {}
         # get the subsection defined by one winner
         df1 = df[df["lab"] == lab]
-        # order winners are accessed in
-        vec_order.append(df1['vec'].iloc[int(0)])
+        # add vector to dictionary
         vec_dict[lab] = df1['vec'].iloc[int(0)]
+        # get all x values for the subsection
         xs = df1["x"]
+        # sort them into a unique list
         xs = sorted(list(set(xs.tolist())))
-        y_tops = []
+        # list of the y-values that make up the bottom portion of the subsection
         y_bottoms = []
         for x in xs:
-            # for a given "x" find the max and minimum y-values
+            # for a given "x" find the top and bottom y-values
             y_top = max(df1[df1["x"] == x]["y"])
             y_bottom = min(df1[df1["x"] == x]["y"])
             # ensures the section is convex, not concave
-            if len(df1[df1["x"] == x]["y"]) < (y_top - y_bottom)/dx_y:
+            if len(df1[df1["x"] == x]["y"]) < (y_top - y_bottom)/dy:
                 print("len: " + str(len(df1[df1["x"] == x]["y"])))
                 print("ytop: " + str(y_top))
                 print("ybottom: " + str(y_bottom))
-                print("dx_y: " + str(dx_y))
+                print("dy: " + str(dy))
                 print(x)
                 print(df1[df1["x"] == x]["y"])
                 raise ValueError(
                     "Section has more than 2 points for a given 'x'")
-            y_tops.append(y_top)
             y_bottoms.append(y_bottom)
-        y_tops = np.array(y_tops)
-        y_bottoms = np.array(y_bottoms)
-        xs = np.array(xs)
         sec_dict['x'] = xs
-        sec_dict['top'] = y_tops
         sec_dict['bottom'] = y_bottoms
+        sec_dict['vec'] = df1['vec'].iloc[int(0)]
         sec_list.append(sec_dict)
-    return sec_list, vec_order, vec_dict
+    return sec_list, vec_dict
 
 # this is used for computing the integral-based pdfs for a given poincare section
-
-
-def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
-    x = Symbol('x')
-
+def sec_comp_integrals(df, sec_list, vec_dict, dx, dy, m1, y0):
     secs = []
     problem_xs = []
+    # go through each section and find its left-most point and append it to a list
     for i in range(len(sec_list)):
         xs = sec_list[i]['x']
         problem_xs.append(xs[0])
     problem_xs = sorted(list(set(problem_xs)))
-    # print(problem_xs)
+    # go through all these problem_xs and get the unique values. Due to sampling, there mayb be two subsections that should begin at x = 0 but begin at x = 0.01 and x = 0.0105. Count these points as the same and only add one of them
     problems = [problem_xs[0]]
     for i in range(len(problem_xs) - 1):
         # these points are the same but may not be equal due to sampling methods and python rounding
@@ -892,10 +762,13 @@ def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
             continue
         problems.append(problem_xs[i+1])
     problems.append(1)
-    # print(problems)
+    
+    # find all the midpoints between these problem points
     prob_mids = []
     for i in range(len(problems) - 1):
         prob_mids.append((problems[i] + problems[i+1])/2)
+
+    # go through each midpoint and find the closest x-value that was sampled in our winners df. 
     i = 0
     use_points = []
     for item in np.arange(dx, 1, dx):
@@ -905,23 +778,24 @@ def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
         use_points.append(item)
         if i == len(prob_mids):
             break
-    # print(use_points)
 
     for i in range(len(sec_list)):
         xs = sec_list[i]['x']
-        top = sec_list[i]['top']
         bottom = sec_list[i]['bottom']
-        sec = Section(x, top, bottom)
-        sec.vec = vec_order[int(i)]
+        sec = Section()
+        sec.vec = sec_list[i]['vec']
 
+        # list to accumulate what sections are directly about the given subsection. These will be used to determine the equations of the lines that make up the bottom part of the subsection
         bottom_lab_list = []
         for x_, y_ in zip(xs, bottom):
             if x_ not in use_points:
                 continue
-            poss_ys = sorted(list(df[(df["x"] == x_)]["y"]), reverse=True)
-            y_index = poss_ys.index(y_)
+            # list of y-values at the given x-value
+            possible_ys = sorted(list(df[(df["x"] == x_)]["y"]), reverse=True)
+            # find the index of the y-value that is on the bottom edge of the current subsection at the current x-value
+            y_index = possible_ys.index(y_)
 
-            # Check if index + 1 is valid
+            # Check if there is a y-value in our winners df that is below the y_index value. If there is, find out what the label/vector is in that different subsection
             if y_index + 1 < len(poss_ys):
                 # Get the value at index + 1
                 next_y = poss_ys[y_index + 1]
@@ -930,20 +804,25 @@ def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
                 lab_value = filtered_df["lab"].iloc[0]
                 if lab_value not in bottom_lab_list:
                     bottom_lab_list.append(lab_value)
+            # if there are no y-values, then this subsection has a bottom edge on the boundary of the entire poincare section. Record this label as -1
             else:
                 if -1 not in bottom_lab_list:
                     bottom_lab_list.append(int(-1))
 
+        # list of equations for the bottom segments of our subsection. The equations of the top segemnts of a given subsection is determined by the winning saddle connection. Use this fact to get the equations of the bottom segments that share an edge with these top segments
         eqs = []
-        # print(bottom_lab_list)
         for lab in bottom_lab_list:
             if lab != -1:
                 vec = vec_dict[lab]
+                # for a winning saddle connection (x0,y0), the equation of its top line is (-x0/y0)*x + 1/y0
                 eqs.append(-frac(vec[0][0], vec[1][0])
                            * x + frac(int(1)/vec[1][0]))
+            # if there is no other subsection below the current subsection, the equation for the bottom segment is the boundary of the poincare section
             else:
                 eqs.append(frac(m1) * x + frac(int(1)/y0))
 
+        # get the exact x-values for where the equation of the bottom segments change
+        # points where the bottom change
         points = [xs[0]]
         for i in range(len(eqs) - 1):
             eq1 = eqs[i]
@@ -953,15 +832,13 @@ def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
             if intersection_x:  # If there is a solution
                 points.append(intersection_x[0])
             else:
-                print(
-                    f"intersection between bottom equation {i} and bottom equation {i+1} point failed")
+                raise ValueError(f"intersection between bottom equation {i} and bottom equation {i+1} point failed")
 
+        # define a top function for the top of the subsection
         sec.top.append(-frac(sec.vec[0][0], sec.vec[1][0])
                        * x + frac(int(1)/sec.vec[1][0]))
-        sec.f_top.append(lambdify([x], sec.top[0]))
 
-        # modifying the first entry in points so that it is not the rounded version. Finding the x-componennt of the intersection between the
-        # "top" equation and the first "bottom" equation
+        # modifying the first entry in points so that it is not the rounded version. Finding the x-component of the intersection between the "top" equation and the first "bottom" equation
         eq1 = sec.top[0]
         eq2 = eqs[0]
 
@@ -969,110 +846,13 @@ def sec_comp2(df, sec_list, vec_order, vec_dict, dx, dx_y, m1, y0):
         if intersection_x:  # If there is a solution
             points[0] = intersection_x[0]
         else:
-            print("intersection between top and first bottom point failed")
-
-        sec.points_top = [points[0], points[-1]]
+            raise ValueError("intersection between top and first bottom point failed")
 
         for eq in eqs:
             sec.bottom.append(eq)
-            sec.f_bottom.append(lambdify([x], eq))
             sec.points_bottom = points
-
         secs.append(sec)
     return secs
-
-
-def time_comp(secs):
-    times = []
-    for sec in secs:
-        x_val = sec.points_top[-1]
-        y_val = sec.f_top[-1](x_val)
-        x, y = sym.symbols('x y')
-        val = sec.t().subs({x: x_val, y: y_val})
-        times.append(val)
-    times2 = [times[0]]
-    for time in times:
-        add = True
-        for i in range(len(times2)):
-            if abs(time-times2[i]) < 0.01:
-                add = False
-        if add:
-            times2.append(time)
-
-    return times2
-
-
-def pdf(vals, prob_times, dx, n_squares, index, j, test=False):
-    times = list(np.arange(0, 10, 20*dx))
-    a = list(sorted(vals))
-    factor = 1/min(a)*min(prob_times)
-    b = []
-    for item in a:
-        b.append(item*factor)
-    cdf = [0]
-    # compute cdf
-    for t in times:
-        num = cdf[-1]
-        for i in range(num, len(b)):
-            if b[i] <= t:
-                num += 1
-                continue
-            else:
-                cdf.append(num)
-                break
-    # compute pdf
-    pdf = []
-    for i in range(len(cdf) - 1):
-        delta = (cdf[i+1] - cdf[i])/dx
-        pdf.append(delta)
-    fig, ax = plt.subplots(figsize=(10, 10))
-    # print(f'length of inputs: {len(times)}, {len(pdf)}')
-    ax.scatter(times, pdf, s=0.5)
-
-    # plot discontinuities
-    probs2 = []
-    for item in prob_times:
-        probs2.append(item)
-        # probs2.append(factor*item)
-    for t in probs2:
-        if t > max(times):
-            continue
-        for i in range(len(times)):
-            if t < times[i]:
-                ax.scatter(t, pdf[i-1], s=20, color="red")
-                break
-    if test == True:
-        print(prob_times)
-    plt.show()
-    plt.savefig(os.path.join(
-        "results", f"{n_squares}_{index}", f"pdf_{j}"))
-    plt.close(fig)
-    return pdf
-
-# generate vectors for saddle connections on STS, alternate method
-
-
-def vectors2(perm, length=200):
-    a = str(perm)
-    h, v = a.split("\n")
-    S = SymmetricGroup(len(h))
-    T = translation_surfaces.origami(S(h), S(v))
-    T = T.erase_marked_points()
-    sc_list = T.saddle_connections(length)
-    slopes_all = []
-    for item in sc_list:
-        vec = item.holonomy().n()
-        direction = item.direction
-        if vec not in slopes_all:
-            if vec[0] >= -length/20 and vec[0] <= length/20:
-                if vec[1] >= -length/20 and vec[1] <= length/20:
-                    slopes_all.append(item.holonomy().n())
-    vecs = []
-    for vec in slopes_all:
-        item = np.array([[vec[0]], [vec[1]]])
-        vecs.append(item)
-    return vecs
-
 
 def save_arrays_to_file(file_path, arrays_list):
     # Save arrays to a single NumPy file
@@ -1085,44 +865,6 @@ def load_arrays_from_file(file_path):
     # Ensure each element in the list is a NumPy array
     arrays_list = [np.array(array) for array in arrays_list]
     return arrays_list
-
-# def covolume(secs):
-#     sum = 0
-#     for i in range(len(secs)):
-
-#         all_points = []
-#         for item in secs[i].points_top:
-#             all_points.append(item)
-#         for item in secs[i].points_bottom:
-#             all_points.append(item)
-
-#         all_points = set(all_points)
-#         all_points = list(all_points)
-#         all_points.sort()
-
-#         m = 0
-#         n = 0
-#         for k in range(1, len(all_points)):
-#             if (not (all_points[k-1] >= secs[i].points_top[m] and all_points[k] <= secs[i].points_top[m+1])):
-#                 m += 1
-#             if (not (all_points[k-1] >= secs[i].points_bottom[n] and all_points[k] <= secs[i].points_bottom[n+1])):
-#                 n += 1
-#             top_eq = secs[i].f_top[m]
-#             bottom_eq = secs[i].f_bottom[n]
-#             upper = all_points[k]
-#             lower = all_points[k-1]
-#             x_ = float(secs[i].vec[0][0])
-#             y_ = float(secs[i].vec[1][0])
-
-#             # Perform the double integral
-#             def f(y, x):
-#                 print(f"x: {x}, x_: {x_}, y: {y}, y_: {y_}")
-#                 return y_ / (x * (x_ * x + y_ * y))
-#             result, error = integrate.dblquad(
-#                 f, lower, upper, lambda x: bottom_eq(x), lambda x: top_eq(x))
-#             sum += result
-#     return sum
-
 
 def read_df(n_squares, index, cusp):
     df = pd.read_csv(os.path.join(
