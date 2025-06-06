@@ -6,6 +6,7 @@ import sys
 from Library import *
 import re
 import os
+from fractions import Fraction as frac
 
 def run_sage(script, args, log_file):
     """Run a Sage script with the given arguments"""
@@ -29,9 +30,8 @@ def main():
     parser.add_argument("--horizontal_perm", type=str, help="Permutation for the horizontal pairings")
     parser.add_argument("--vertical_perm", type=str, help="Permutation for the vertical pairings")
 
-    parser.add_argument("--dx", type=float, default=0.0005, help="dx sampling resolution (positive float)")
-    parser.add_argument("--dy", type=float, default=None, help="dy sampling resolution (positive float)")
-    parser.add_argument("--dz", type=float, default=0.01, help="sampling resolution for potential winners (positive float)")
+    parser.add_argument("--dx", type=string, default='1/2000', help="dx sampling resolution (positive fraction string)")
+    parser.add_argument("--dy", type=string, default='None', help="dy sampling resolution (positive fraction string)")
     parser.add_argument("--vec_length", type=int, default=2000, help="Length of the generated vectors (positive integer)")
 
     parser.add_argument("--folder", type=str, help="directory of the folder where you want the files to live")
@@ -78,35 +78,45 @@ def main():
     # Create folder if it doesn't exist
     os.makedirs(args.folder, exist_ok=True)  # Creates folder if needed
 
-    if args.dx <= 0:
-        print("Error: --dx must be a positive float.")
+    # handle dx
+    try:
+        dx_frac = frac(args.dx)
+        dx = float(dx_frac)
+    except Exception as e:
+        print(f"Error for dx: {e}")
+        sys.exit(1)
+    if dx <= 0:
+        print("Error: --dx must be a positive fraction.")
         sys.exit(1)
 
-    if args.dz <= 0:
-        print("Error: --dz must be a positive float.")
-        sys.exit(1)
+    # handle dy
+    if dy == 'None':
+        dy_frac = -1
+        dy = -1
+    else:
+        try:
+            dy_frac = frac(args.dy)
+            dy = float(dy_frac)
+        except Exception as e:
+            print(f"Error for dy: {e}")
+            sys.exit(1)
+        if dy <= 0:
+            print("Error: --dy must be a positive fraction.")
+            sys.exit(1)
 
     # vec_length positive int
     if args.vec_length <= 0:
         print("Error: --vec_length must be a positive integer.")
         sys.exit(1)
 
-    # dy default if not provided
-    if args.dy is None:
-        args.dy = -1
-    elif args.dy <= 0:
-        print("Error: --dy must be positive.")
-        sys.exit(1)
-
     # Prepare args for scripts as strings
     dx = str(args.dx)
     dy = str(args.dy)
-    dz = str(args.dz)
     vec_length = str(args.vec_length)
     folder = args.folder
 
     run_sage("script_vector.py", [perm, vec_length, folder], os.path.join(folder, "log.txt"))
-    run_sage("script_winners.py", [perm, dx, dy, dz, folder], os.path.join(folder, "log.txt"))
+    run_sage("script_winners.py", [perm, dx, dy, folder], os.path.join(folder, "log.txt"))
     run_sage("script_integrals.py", [perm, folder], os.path.join(folder, "log.txt"))
 
     print("\nAll scripts completed successfully.")
