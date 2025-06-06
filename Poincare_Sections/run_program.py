@@ -125,9 +125,9 @@ def main():
     with open(os.path.join("results", folder, "perm.dill"), 'wb') as f:
         dill.dump(perm, f)
 
-    run_sage("script_vector.py", [perm, vec_length, folder], os.path.join(folder, "log.txt"))
-    run_sage("script_winners.py", [perm, dx, dy, folder], os.path.join(folder, "log.txt"))
-    run_sage("script_integrals.py", [perm, folder], os.path.join(folder, "log.txt"))
+    run_sage("script_vector.py", [vec_length, folder], os.path.join(folder, "log.txt"))
+    run_sage("script_winners.py", [dx, dy, folder], os.path.join(folder, "log.txt"))
+    run_sage("script_integrals.py", [folder], os.path.join(folder, "log.txt"))
 
     print("\nAll scripts completed successfully.")
 
