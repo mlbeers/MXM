@@ -20,21 +20,20 @@ from mathematica import *
 
 t0 = time()
 
-n_squares = int(sys.argv[1])
-# index to start at
-index = int(sys.argv[2])
+folder = str(sys.argv[1])
 
-perm = perms_list(n_squares)[index]
+with open(os.path.join("results", folder, "perm.dill"), 'rb') as f:
+    perm = dill.load(f)
 
-final_dir = os.path.join("results", f"{n_squares}_{index}")
+final_dir = os.path.join("results", folder)
 os.makedirs(final_dir, exist_ok=True)  # Ensure directory exists
 
 # get the alphas
-with open(os.path.join("results", f"{n_squares}_{index}", "setup.dill"), 'rb') as f:
+with open(os.path.join("results", folder, "setup.dill"), 'rb') as f:
     loaded_data = dill.load(f)
 a,_,_,_ = loaded_data
 
-list_piecewise, boundary_points = run_integrals(n_squares, index, a, perm)
+list_piecewise, boundary_points = run_integrals(folder, a, perm)
 
 # Create the combined Piecewise function
 combined_pw, combined_scaled_pw = create_combined_piecewise(list_piecewise, boundary_points)
@@ -47,7 +46,7 @@ latex_expr = latex_expr.replace(r"\text{for}\: t", "").replace(r"\geq", "").repl
 interval_list = [[boundary_points[i], boundary_points[i + 1]] for i in range(len(boundary_points) - 1)]
 interval_list[-1][1] = interval_list[-1][0] + 10
 
-graph_piece(combined_pw, interval_list, n_squares, index, -1, 50)
+graph_piece(combined_pw, interval_list, folder, -1, 50)
 
 with open(os.path.join(final_dir, f"final_eq.dill"), 'wb') as file:
     dill.dump(combined_pw, file)
