@@ -17,7 +17,7 @@ from sympy import Matrix, sqrt, solve, lambdify, Eq, Symbol
 import dill
 from collections import defaultdict
 
-class Section:
+class Section_estimated:
     def __init__(self, x, top, bottom):
         self.vec = None
         self.pwlf_top = pwlf.PiecewiseLinFit(x, top)
@@ -119,7 +119,7 @@ def sec_comp(sec_list, dx):
         x = sec_list[i]['x']
         top = sec_list[i]['top']
         bottom = sec_list[i]['bottom']
-        sec = Section(x, top, bottom)
+        sec = Section_estimated(x, top, bottom)
         sec.vec = label_dict[labs[i]]
 
         # use piece-wise linear regression to find the equations of the lines for subsection
