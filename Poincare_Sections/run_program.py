@@ -7,6 +7,7 @@ from Library import *
 import re
 import os
 from fractions import Fraction as frac
+import dill
 
 def run_sage(script, args, log_file):
     """Run a Sage script with the given arguments"""
@@ -114,6 +115,15 @@ def main():
     dy = str(args.dy)
     vec_length = str(args.vec_length)
     folder = args.folder
+
+    # create directories if they dont exist for recording info
+    os.makedirs("results", exist_ok=True)
+    os.makedirs("vecs", exist_ok=True) 
+    os.makedirs(os.path.join("results", folder), exist_ok=True)
+
+    #save perm with dill to use in script
+    with open(os.path.join("results", folder, "perm.dill"), 'wb') as f:
+        dill.dump(perm, f)
 
     run_sage("script_vector.py", [perm, vec_length, folder], os.path.join(folder, "log.txt"))
     run_sage("script_winners.py", [perm, dx, dy, folder], os.path.join(folder, "log.txt"))
