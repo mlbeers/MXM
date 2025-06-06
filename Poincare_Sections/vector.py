@@ -36,6 +36,28 @@ def generate_vectors(perm, length=256):
     print(len(vecs))
     return vecs
 
+# generate vectors for saddle connections on STS, alternate method
+def vectors2(perm, length=200):
+    a = str(perm)
+    h, v = a.split("\n")
+    S = SymmetricGroup(len(h))
+    T = translation_surfaces.origami(S(h), S(v))
+    T = T.erase_marked_points()
+    sc_list = T.saddle_connections(length)
+    slopes_all = []
+    for item in sc_list:
+        vec = item.holonomy().n()
+        direction = item.direction
+        if vec not in slopes_all:
+            if vec[0] >= -length/20 and vec[0] <= length/20:
+                if vec[1] >= -length/20 and vec[1] <= length/20:
+                    slopes_all.append(item.holonomy().n())
+    vecs = []
+    for vec in slopes_all:
+        item = np.array([[vec[0]], [vec[1]]])
+        vecs.append(item)
+    return vecs
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~ Tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
