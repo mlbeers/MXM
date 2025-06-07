@@ -31,9 +31,11 @@ def main():
     parser.add_argument("--horizontal_perm", type=str, help="Permutation for the horizontal pairings")
     parser.add_argument("--vertical_perm", type=str, help="Permutation for the vertical pairings")
 
-    parser.add_argument("--dx", type=string, default='1/2000', help="dx sampling resolution (positive fraction string)")
-    parser.add_argument("--dy", type=string, default='None', help="dy sampling resolution (positive fraction string)")
+    parser.add_argument("--dx", type=str, default='1/2000', help="dx sampling resolution (positive fraction string)")
+    parser.add_argument("--dy", type=str, default='-1', help="dy sampling resolution (positive fraction string)")
     parser.add_argument("--vec_length", type=int, default=2000, help="Length of the generated vectors (positive integer)")
+    parser.add_argument("--estimated", action="store_true", help="Include files of estimated values (flag)")
+
 
     parser.add_argument("--folder", type=str, help="directory of the folder where you want the files to live")
 
@@ -53,7 +55,7 @@ def main():
             print("Error: --num_squares must be a greater than 5.")
             sys.exit(1)
 
-        upper_index = len(perm_list(args.num_squares)) - 1
+        upper_index = len(perms_list(args.num_squares)) - 1
         if args.index < 0 or args.index > upper_index:
             print(f"Error: --index must be an index between 0 and {upper_index} for num_squares={args.num_squares}")
 
@@ -76,9 +78,6 @@ def main():
             print(f"Error: {e}")
             sys.exit(1)
 
-    # Create folder if it doesn't exist
-    os.makedirs(args.folder, exist_ok=True)  # Creates folder if needed
-
     # handle dx
     try:
         dx_frac = frac(args.dx)
@@ -91,10 +90,7 @@ def main():
         sys.exit(1)
 
     # handle dy
-    if dy == 'None':
-        dy_frac = -1
-        dy = -1
-    else:
+    if args.dy != '-1':
         try:
             dy_frac = frac(args.dy)
             dy = float(dy_frac)
@@ -115,6 +111,7 @@ def main():
     dy = str(args.dy)
     vec_length = str(args.vec_length)
     folder = args.folder
+    estimated = str(args.estimated)
 
     # create directories if they dont exist for recording info
     os.makedirs("results", exist_ok=True)
@@ -125,9 +122,10 @@ def main():
     with open(os.path.join("results", folder, "perm.dill"), 'wb') as f:
         dill.dump(perm, f)
 
-    run_sage("script_vector.py", [vec_length, folder], os.path.join(folder, "log.txt"))
-    run_sage("script_winners.py", [dx, dy, folder], os.path.join(folder, "log.txt"))
-    run_sage("script_integrals.py", [folder], os.path.join(folder, "log.txt"))
+    if not os.path.exists(os.path.join("vecs", f"vecs_{folder}.npy")):
+        run_sage("script_vector.py", [vec_length, folder], os.path.join("results", folder, "log.txt"))
+    run_sage("script_winners.py", [dx, dy, estimated, folder], os.path.join("results", folder, "log.txt"))
+    run_sage("script_integrals.py", [folder], os.path.join("results", folder, "log.txt"))
 
     print("\nAll scripts completed successfully.")
 

@@ -37,16 +37,22 @@ dx = float(dx_frac)
 dy_frac = frac(dy_string)
 dy = float(dy_frac)
 
-folder = str(sys.argv[3])
+estimated_string = str(sys.argv[3])
+if estimated_string == "True":
+    estimated = True
+else:
+    estimated = False
+
+folder = str(sys.argv[4])
 
 with open(os.path.join("results", folder, "perm.dill"), 'rb') as f:
     perm = dill.load(f)
 
 plot = perm.plot()
-plot.save(os.path.join("results", f"{n_squares}_{index}", "permutation.png"))
+plot.save(os.path.join("results", folder, "permutation.png"))
 
 # get a list of saddle connections
-vec_file = "vecs" + str(n_squares) + "_" + str(index) + ".npy"
+vec_file = f"vecs_{folder}.npy"
 vecs0 = load_arrays_from_file(os.path.join("vecs", vec_file))
 
 print(f'number of vecs: {len(vecs0)}')
@@ -72,13 +78,13 @@ print(f'length of alphas: {len(a)}')
 
 # write these values to a file
 data = [a, c, e, g]
-with open(os.path.join("results", f"{n_squares}_{index}", "setup.dill"), 'wb') as f:
+with open(os.path.join("results", folder, "setup.dill"), 'wb') as f:
     dill.dump(data, f)
 
 # get the number of cores to be used in computations and the number of loops needed to complete each cusp
 num_pools, num_loops = pool_num(len(a[0]))
 
-args = [(vecs0, a, c, e, dx, dy, dx_frac, dy_frac, j, n_squares, index, estimated) for j in range(len(a[0]))]
+args = [(vecs0, a, c, e, dx, dy, dx_frac, dy_frac, j, folder, estimated) for j in range(len(a[0]))]
 
 # parallelize the run_script function
 for i in range(num_loops):

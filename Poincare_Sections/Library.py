@@ -455,7 +455,7 @@ def setup(alpha, c, eig, vecs0, dx, dx_frac):
 
     # defines vertical step when finding winners
     dy_x = (m0 - m1) * dx
-    dy_x_frac = (m0 - m1) * dx_frac
+    dy_x_frac = frac((m0 - m1) * dx_frac)
     
     return vecs, x_vals, m0, m1, x0, y0, dy_x, dy_x_frac
 
@@ -796,9 +796,9 @@ def sec_comp_integrals(df, sec_list, vec_dict, dx, m1, y0):
             y_index = possible_ys.index(y_)
 
             # Check if there is a y-value in our winners df that is below the y_index value. If there is, find out what the label/vector is in that different subsection
-            if y_index + 1 < len(poss_ys):
+            if y_index + 1 < len(possible_ys):
                 # Get the value at index + 1
-                next_y = poss_ys[y_index + 1]
+                next_y = possible_ys[y_index + 1]
                 filtered_df = df[(df["x"] == x_) & (df["y"] == next_y)]
                 # Get the value in the "lab" column of the first row
                 lab_value = filtered_df["lab"].iloc[0]
