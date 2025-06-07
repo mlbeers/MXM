@@ -76,11 +76,11 @@ def get_symbolic_eqn(pwlf_, segment_number):
 
 def sec_setup_estimated(df, dx_y):
     sec_list = []
-    global labs
     labs = df["lab"].unique()
     for lab in labs:
         sec_dict = {}
         df1 = df[df["lab"] == lab]
+        vec = df1['vec'].iloc[int(0)]
         xs = df1["x"]
         xs = sorted(list(set(xs.tolist())))
         y_tops = []
@@ -107,6 +107,7 @@ def sec_setup_estimated(df, dx_y):
         sec_dict['x'] = xs
         sec_dict['top'] = y_tops
         sec_dict['bottom'] = y_bottoms
+        sec_dict['vec'] = vec
         sec_list.append(sec_dict)
     return sec_list
 
@@ -120,7 +121,7 @@ def sec_comp_estimated(sec_list, dx):
         top = sec_list[i]['top']
         bottom = sec_list[i]['bottom']
         sec = Section_estimated(x, top, bottom)
-        sec.vec = label_dict[labs[i]]
+        sec.vec = sec_list[i]['vec']
 
         # use piece-wise linear regression to find the equations of the lines for subsection
         # top
@@ -189,7 +190,7 @@ def time_comp(secs):
     return times2
 
 
-def pdf(vals, prob_times, dx, n_squares, index, j, test=False):
+def pdf(vals, prob_times, dx, folder, j, test=False):
     times = list(np.arange(0, 10, 20*dx))
     a = list(sorted(vals))
     factor = 1/min(a)*min(prob_times)
@@ -232,6 +233,6 @@ def pdf(vals, prob_times, dx, n_squares, index, j, test=False):
         print(prob_times)
     plt.show()
     plt.savefig(os.path.join(
-        "results", f"{n_squares}_{index}", f"pdf_{j}"))
+        "results", folder, f"pdf_{j}"))
     plt.close(fig)
     return pdf
