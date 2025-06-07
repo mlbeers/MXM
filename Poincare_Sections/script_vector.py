@@ -17,7 +17,7 @@ folder = str(sys.argv[2])
 with open(os.path.join("results", folder, "perm.dill"), 'rb') as f:
     perm = dill.load(f)
     
-name = "vecs" + folder + ".npy"
+name = "vecs_" + folder + ".npy"
 
 vecs0 = generate_vectors(perm, vec_length)
 save_arrays_to_file(os.path.join("vecs", name), vecs0)
